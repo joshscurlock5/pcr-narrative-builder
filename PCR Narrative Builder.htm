@@ -335,8 +335,17 @@
     color: var(--gray-400);
   }
   .thumbs-btn:hover { border-color: var(--gray-400); background: var(--gray-50); color: var(--gray-600); }
-  .thumbs-btn.thumbs-up.tb-active  { background: #dcfce7; border-color: #16a34a; color: #16a34a; }
-  .thumbs-btn.thumbs-down.tb-active { background: #fee2e2; border-color: #dc2626; color: #dc2626; }
+  .thumbs-btn.thumbs-up.tb-active   { background: #dcfce7; border-color: #16a34a; color: #16a34a; }
+  .thumbs-btn.thumbs-down.tb-active  { background: #fee2e2; border-color: #dc2626; color: #dc2626; }
+  .thumbs-btn.thumbs-side.tb-active  { background: #fef3c7; border-color: #d97706; color: #d97706; }
+  .vitals-proc-panel { margin-top: 8px; padding: 10px 12px; background: #fffbeb; border: 1.5px solid #fcd34d; border-radius: 8px; }
+  .vitals-proc-title { font-size: 0.73rem; font-weight: 700; color: #92400e; margin-bottom: 7px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .vitals-proc-checks { display: flex; flex-direction: column; gap: 7px; }
+  .vitals-proc-lbl { display: flex; gap: 8px; align-items: center; cursor: pointer; font-size: 0.87rem; color: var(--gray-700); user-select: none; padding: 2px 0; }
+  .vitals-proc-lbl input[type=checkbox] { display: none; }
+  .vitals-proc-box { width: 18px; height: 18px; border: 2px solid var(--gray-300); border-radius: 4px; background: white; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 12px; font-weight: 900; color: transparent; transition: all 0.12s; }
+  .vitals-proc-lbl.vp-checked .vitals-proc-box { background: #d97706; border-color: #d97706; color: white; }
+  .vitals-proc-lbl:hover .vitals-proc-box { border-color: #d97706; }
   .thumbs-help { position: relative; display: inline-flex; align-items: center; margin-left: 6px; }
   .thumbs-help-btn {
     width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--gray-400);
@@ -566,6 +575,7 @@ const STEPS = [
       { id: 'abcs_interventions', label: 'Interventions', type: 'textarea', placeholder: 'e.g. O2 via NRB at 15 LPM; cardiac monitor applied', opt: true, showWhen: { field: 'abcs_ok', value: 'down' } },
       { id: 'abcs_pt_response', label: 'Patient Response', type: 'pt_response', opt: true, showWhen: { field: 'abcs_ok', value: 'down' } },
       { id: 'vitals_ok', label: 'Vital Signs', type: 'thumbs', controlsVitals: true, bar: 'orange', required: true },
+      { id: 'vitals_procs', type: 'hidden_json' },
       { id: '_vitals_header', type: 'header' },
       { id: 'hr',   label: 'HR',   unit: 'bpm',   type: 'vital', opt: true },
       { id: 'bp',   label: 'BP',   unit: 'mmHg',  type: 'vital', opt: true },
@@ -622,6 +632,7 @@ const STEPS = [
       { id: 'abcs_interventions', label: 'En Route Interventions', type: 'textarea', placeholder: 'e.g. Additional treatments administered en route...', opt: true, showWhen: { field: 'abcs_ok', value: 'down' } },
       { id: 'abcs_pt_response', label: 'Patient Response', type: 'pt_response', opt: true, showWhen: { field: 'abcs_ok', value: 'down' } },
       { id: 'vitals_ok', label: 'Vital Signs', type: 'thumbs', controlsVitals: true, bar: 'orange', required: true },
+      { id: 'vitals_procs', type: 'hidden_json' },
       { id: '_vitals_header', type: 'header' },
       { id: 'hr',   label: 'HR',   unit: 'bpm',   type: 'vital', opt: true },
       { id: 'bp',   label: 'BP',   unit: 'mmHg',  type: 'vital', opt: true },
@@ -1196,6 +1207,7 @@ function renderStep(idx) {
                     : f.id === 'opqrst_ok'     ? 'Pertinent findings noted — describe below'
                     : 'Life threats identified — describe below';
       const barClass = f.bar === 'red' ? 'bar-red' : f.bar === 'orange' ? 'bar-orange' : f.bar === 'blue' ? 'bar-blue' : '';
+      const savedProcs = f.controlsVitals ? (() => { try { return JSON.parse(saved['vitals_procs'] || '[]'); } catch(e) { return []; } })() : [];
       fieldsHtml += `${wrapOpen}${barClass ? `<div class="${barClass}${sv==='down'?' bar-open':''}" id="barbox_${f.id}">` : ''}<div class="field">
         <label${f.id === 'assessment_ok' ? ` id="assessment_ok_label"` : ''}>${autoDotHtml}${thumbLabel}</label>
         <div style="display:flex;align-items:center">
@@ -1214,8 +1226,17 @@ function renderStep(idx) {
                 <path d="M17 2h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
               </svg>
             </button>
+            ${f.controlsVitals ? `<button type="button" class="thumbs-btn thumbs-side${sv === 'side' ? ' tb-active' : ''}"
+              onclick="setThumbs('${f.id}', 'side', this)" title="Additional procedures performed">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style="transform:rotate(-90deg)" xmlns="http://www.w3.org/2000/svg">
+                <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/>
+                <path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+            </button>` : ''}
           </div>
         </div>
+        ${f.controlsVitals ? `<div id="vitals_proc_panel" style="display:${sv === 'side' ? 'block' : 'none'}">${buildVitalsProcPanel(savedProcs)}</div>
+        <input type="hidden" id="f_vitals_procs" value="${JSON.stringify(savedProcs).replace(/"/g,'&quot;')}">` : ''}
         <input type="hidden" id="f_${f.id}" value="${sv}">
       </div>${barClass ? '</div>' : ''}${wrapClose}${barClass ? `<div class="bar-drop bar-drop-${f.bar}" id="bardrop_${f.id}" style="display:${sv==='down'?'block':'none'}">` : ''}`;
       if (barClass) currentBarId = f.id;
@@ -2140,6 +2161,34 @@ function setThumbs(fieldId, value, btn) {
   });
   const drop = document.getElementById('bardrop_' + fieldId);
   if (drop) drop.style.display = value === 'down' ? 'block' : 'none';
+  // Show/hide procedures panel (vitals sideways)
+  const procPanel = document.getElementById('vitals_proc_panel');
+  if (procPanel) procPanel.style.display = value === 'side' ? 'block' : 'none';
+}
+function buildVitalsProcPanel(procs) {
+  const items = [
+    { id: 'bgl',    label: 'BGL performed' },
+    { id: 'lead4',  label: '4 lead performed' },
+    { id: 'lead12', label: '12 lead performed' },
+  ];
+  const checks = items.map(it => {
+    const on = procs.includes(it.id);
+    return `<label class="vitals-proc-lbl${on ? ' vp-checked' : ''}" onclick="toggleVitalsProc('${it.id}', ${!on}, this)">
+      <input type="checkbox"${on ? ' checked' : ''}><div class="vitals-proc-box">${on ? '✓' : ''}</div><span>${it.label}</span>
+    </label>`;
+  }).join('');
+  return `<div class="vitals-proc-title">Additional Procedures</div><div class="vitals-proc-checks">${checks}</div>`;
+}
+function toggleVitalsProc(procId, isChecked, labelEl) {
+  const inp = document.getElementById('f_vitals_procs');
+  if (!inp) return;
+  let procs = [];
+  try { procs = JSON.parse(inp.value || '[]'); } catch(e) {}
+  procs = isChecked ? [...new Set([...procs, procId])] : procs.filter(p => p !== procId);
+  inp.value = JSON.stringify(procs);
+  labelEl.classList.toggle('vp-checked', isChecked);
+  const box = labelEl.querySelector('.vitals-proc-box');
+  if (box) box.textContent = isChecked ? '✓' : '';
 }
 
 const UNIT_TYPES = ['Rescue','Engine','Truck','Chief'];
@@ -2477,12 +2526,25 @@ function generateNarrative() {
       painScale  && `pain ${painScale}`,
       pupilsVal  && `pupils ${pupilsVal.toLowerCase()}`,
     ].filter(Boolean);
-    sentences.push(vitalParts.length
-      ? dot(`Vital signs were assessed which revealed ${vitalParts.join(', ')}`)
-      : 'Vital signs were assessed without life-threatening abnormalities.');
-    if (!v('primary_assessment','bgl') && bglDone === 'yes') sentences.push('Blood glucose was taken.');
-    if (!ekgRhythm && ekgDone === 'yes') sentences.push('4 Lead EKG was taken.');
-    if (!ekg12Lead && ekg12Done === 'yes') sentences.push('12 Lead EKG was taken.');
+    const vitalsOkPrimary = v('primary_assessment','vitals_ok');
+    let vitalsProcs1 = [];
+    try { vitalsProcs1 = JSON.parse(v('primary_assessment','vitals_procs') || '[]'); } catch(e) {}
+    if (vitalsOkPrimary === 'side') {
+      const procLabels = [];
+      if (vitalsProcs1.includes('bgl'))    procLabels.push('BGL');
+      if (vitalsProcs1.includes('lead4'))  procLabels.push('4 lead');
+      if (vitalsProcs1.includes('lead12')) procLabels.push('12 lead');
+      sentences.push(procLabels.length
+        ? dot(`Additional procedures performed: ${procLabels.join(', ')}`)
+        : 'Additional procedures were performed.');
+    } else {
+      sentences.push(vitalParts.length
+        ? dot(`Vital signs were assessed which revealed ${vitalParts.join(', ')}`)
+        : 'Vital signs were assessed without life-threatening abnormalities.');
+      if (!v('primary_assessment','bgl') && bglDone === 'yes') sentences.push('Blood glucose was taken.');
+      if (!ekgRhythm && ekgDone === 'yes') sentences.push('4 Lead EKG was taken.');
+      if (!ekg12Lead && ekg12Done === 'yes') sentences.push('12 Lead EKG was taken.');
+    }
     if (vitalsRx) sentences.push(dot(vitalsRx));
     if (vitalsPR) sentences.push(dot(vitalsPR));
 
@@ -2701,12 +2763,25 @@ function generateNarrative() {
       painScale2  && `pain ${painScale2}`,
       pupilsVal2  && `pupils ${pupilsVal2.toLowerCase()}`,
     ].filter(Boolean);
-    sentences.push(vitalParts2.length
-      ? dot(`Repeat vital signs were assessed which revealed ${vitalParts2.join(', ')}`)
-      : 'Repeat vital signs remained stable.');
-    if (!v('secondary_assessment','bgl') && bglDone2 === 'yes') sentences.push('Blood glucose was taken.');
-    if (!ekgRhythm2 && ekgDone2 === 'yes') sentences.push('4 Lead EKG was taken.');
-    if (!ekg12Lead2 && ekg12Done2 === 'yes') sentences.push('12 Lead EKG was taken.');
+    const vitalsOkSecondary = v('secondary_assessment','vitals_ok');
+    let vitalsProcs2 = [];
+    try { vitalsProcs2 = JSON.parse(v('secondary_assessment','vitals_procs') || '[]'); } catch(e) {}
+    if (vitalsOkSecondary === 'side') {
+      const procLabels2 = [];
+      if (vitalsProcs2.includes('bgl'))    procLabels2.push('BGL');
+      if (vitalsProcs2.includes('lead4'))  procLabels2.push('4 lead');
+      if (vitalsProcs2.includes('lead12')) procLabels2.push('12 lead');
+      sentences.push(procLabels2.length
+        ? dot(`Additional procedures performed en route: ${procLabels2.join(', ')}`)
+        : 'Additional procedures were performed en route.');
+    } else {
+      sentences.push(vitalParts2.length
+        ? dot(`Repeat vital signs were assessed which revealed ${vitalParts2.join(', ')}`)
+        : 'Repeat vital signs remained stable.');
+      if (!v('secondary_assessment','bgl') && bglDone2 === 'yes') sentences.push('Blood glucose was taken.');
+      if (!ekgRhythm2 && ekgDone2 === 'yes') sentences.push('4 Lead EKG was taken.');
+      if (!ekg12Lead2 && ekg12Done2 === 'yes') sentences.push('12 Lead EKG was taken.');
+    }
     if (vitals2Rx) sentences.push(dot(vitals2Rx));
     if (vitals2PR) sentences.push(dot(vitals2PR));
 
