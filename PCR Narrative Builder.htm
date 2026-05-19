@@ -1,0 +1,2906 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PCR Narrative Builder</title>
+<style>
+  :root {
+    --blue: #1e40af; --blue-light: #3b82f6; --blue-pale: #eff6ff; --blue-border: #bfdbfe;
+    --green: #15803d; --green-pale: #f0fdf4;
+    --red: #b91c1c;
+    --gray-100: #f3f4f6; --gray-200: #e5e7eb; --gray-300: #d1d5db;
+    --gray-400: #9ca3af; --gray-500: #6b7280; --gray-700: #374151; --gray-900: #111827;
+    --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font); background: #f1f5f9; color: var(--gray-900); min-height: 100vh; }
+
+  header {
+    background: var(--blue); color: white; padding: 16px 24px;
+    display: flex; align-items: center; gap: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  }
+  header svg { flex-shrink: 0; }
+  header h1 { font-size: 1.2rem; font-weight: 700; letter-spacing: -0.01em; }
+  header p { font-size: 0.8rem; opacity: 0.8; }
+
+  .container { max-width: 760px; margin: 0 auto; padding: 24px 16px 60px; }
+
+  /* Progress */
+  .progress-bar { display: flex; align-items: center; margin-bottom: 28px; }
+  .step-dot { display: flex; flex-direction: column; align-items: center; flex: 1; position: relative; }
+  .step-dot::before {
+    content: ''; position: absolute; top: 13px; left: -50%;
+    width: 100%; height: 2px; background: var(--gray-200); z-index: 0;
+  }
+  .step-dot:first-child::before { display: none; }
+  .step-dot.done::before, .step-dot.active::before { background: var(--blue); }
+  .dot-circle {
+    width: 26px; height: 26px; border-radius: 50%;
+    border: 2px solid var(--gray-300); background: white;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.65rem; font-weight: 700; color: var(--gray-500);
+    position: relative; z-index: 1; transition: all 0.2s;
+  }
+  .step-dot.active .dot-circle { border-color: var(--blue); background: var(--blue); color: white; box-shadow: 0 0 0 3px var(--blue-border); }
+  .step-dot.done .dot-circle { border-color: var(--blue); background: var(--blue); color: white; }
+  .step-dot.skipped .dot-circle { border-color: var(--gray-300); background: var(--gray-100); }
+  .dot-label { font-size: 0.6rem; color: var(--gray-500); margin-top: 4px; text-align: center; white-space: nowrap; }
+  .step-dot.active .dot-label { color: var(--blue); font-weight: 700; }
+  .step-dot.done .dot-label { color: var(--blue); }
+  .step-dot:hover .dot-circle { opacity: 0.8; transform: scale(1.1); transition: all 0.15s; }
+  .step-dot:hover .dot-label { font-weight: 700; transition: all 0.15s; }
+
+  /* Card */
+  .card {
+    background: white; border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 4px 16px rgba(0,0,0,0.04);
+    padding: 28px; margin-bottom: 16px;
+  }
+  .card-header {
+    display: flex; align-items: flex-start; gap: 14px;
+    margin-bottom: 22px; padding-bottom: 18px; border-bottom: 1px solid var(--gray-200);
+  }
+  .step-icon {
+    width: 44px; height: 44px; border-radius: 10px;
+    background: var(--blue-pale); color: var(--blue);
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .card-header h2 { font-size: 1.15rem; font-weight: 700; }
+  .card-header p { font-size: 0.82rem; color: var(--gray-500); margin-top: 2px; }
+
+  /* Fields */
+  .field-group { display: grid; gap: 16px; }
+  .field label { display: block; font-size: 0.8rem; font-weight: 600; color: var(--gray-700); margin-bottom: 5px; }
+  .field label .opt { font-weight: 400; color: var(--gray-500); font-size: 0.75rem; margin-left: 4px; }
+  .field input, .field textarea, .field select {
+    width: 100%; padding: 9px 12px;
+    border: 1.5px solid var(--gray-300); border-radius: 7px;
+    font-size: 0.9rem; font-family: var(--font); color: var(--gray-900);
+    background: white; transition: border-color 0.15s, box-shadow 0.15s; appearance: none;
+  }
+  .field input:focus, .field textarea:focus, .field select:focus {
+    outline: none; border-color: var(--blue-light); box-shadow: 0 0 0 3px rgba(59,130,246,0.15);
+  }
+  .field textarea { resize: vertical; min-height: 84px; }
+  .field select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%236b7280' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 10px center; padding-right: 30px;
+  }
+
+  /* Vitals grid */
+  .vitals-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; }
+  .vital-tile { background: var(--gray-100); border: 1.5px solid var(--gray-200); border-radius: 8px; padding: 9px 11px; }
+  .vital-tile label { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--gray-500); display: block; margin-bottom: 3px; }
+  .vital-tile input { border: none; background: transparent; font-size: 1rem; font-weight: 600; width: 100%; padding: 0; color: var(--gray-900); }
+  .vital-tile input:focus { outline: none; }
+  .vital-tile .unit { font-size: 0.68rem; color: var(--gray-400); }
+  .vital-tile-wide { grid-column: span 2; }
+  .vital-select {
+    border: none; background: transparent; font-size: 0.82rem; font-weight: 600;
+    width: 100%; padding: 0; color: var(--gray-900); cursor: pointer;
+    font-family: var(--font); -webkit-appearance: none; appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%239ca3af' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 2px center; padding-right: 18px;
+  }
+  .vital-select:focus { outline: none; }
+  .vital-done-row { display: flex; align-items: center; gap: 4px; margin-top: 5px; cursor: pointer; user-select: none; }
+  .vital-done-box { width: 12px; height: 12px; border: 1.5px solid #bbb; border-radius: 2px; background: #fff; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 900; color: transparent; }
+  .vital-done-box.on { background: #1a2a4a; border-color: #1a2a4a; color: #fff; }
+  .vital-done-row:hover .vital-done-box { border-color: #6b7280; }
+  .vital-done-text { font-size: 0.62rem; color: #9ca3af; line-height: 1; }
+  .vital-done-row:hover .vital-done-text { color: #6b7280; }
+
+  /* Multi-unit rows */
+  .unit-row { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+  .unit-row select.unit-type-select { width: 105px; flex-shrink: 0; }
+  .unit-row input.unit-num-input { flex: 1; min-width: 50px; }
+  .unit-add-btn {
+    flex-shrink: 0; width: 32px; height: 36px; border-radius: 7px; font-size: 1.2rem; line-height: 1;
+    cursor: pointer; border: 1.5px dashed var(--blue-light); background: var(--blue-pale);
+    color: var(--blue); font-weight: 700; font-family: var(--font); transition: all 0.15s;
+  }
+  .unit-add-btn:hover { background: var(--blue); color: white; border-style: solid; }
+  .unit-remove-btn {
+    flex-shrink: 0; width: 32px; height: 36px; border-radius: 7px; font-size: 1.1rem; line-height: 1;
+    cursor: pointer; border: 1.5px solid var(--gray-300); background: white;
+    color: var(--gray-500); font-family: var(--font); transition: all 0.15s;
+  }
+  .unit-remove-btn:hover { border-color: var(--red); color: var(--red); background: #fef2f2; }
+  .checklist-chips { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 8px; }
+  .checklist-chip {
+    padding: 6px 13px; border-radius: 20px; border: 1.5px solid var(--gray-300);
+    background: white; color: var(--gray-600); cursor: pointer; font-size: 0.85rem;
+    font-family: var(--font); transition: all 0.15s; line-height: 1.3;
+  }
+  .checklist-chip:hover { border-color: var(--blue-light); color: var(--blue); background: var(--blue-pale); }
+  .checklist-chip.chip-active { background: var(--blue-pale); border-color: var(--blue); color: var(--blue); font-weight: 600; }
+  .checklist-other { margin-top: 6px; width: 100%; box-sizing: border-box; }
+
+  /* Patient Response quick-select */
+  .pr-chips { margin-bottom: 4px; }
+  .pr-gradient-bar { margin: 6px 0 2px; }
+  .pr-gradient-track {
+    height: 6px; border-radius: 3px;
+    background: linear-gradient(to right, #e53e3e, #ed8936, #ecc94b, #68d391, #38a169);
+    position: relative;
+  }
+  .pr-gradient-track::after {
+    content: '▶';
+    position: absolute; right: -2px; top: 50%;
+    transform: translateY(-50%);
+    font-size: 10px; color: #38a169; line-height: 1;
+  }
+  .pr-gradient-labels { display: none; }
+
+  /* Medical Alert panel */
+  .alert-boxes { display: flex; gap: 7px; flex-wrap: wrap; margin-bottom: 10px; }
+  .alert-box {
+    flex: 1; min-width: 90px; padding: 10px 6px; border: 2px solid var(--gray-300);
+    border-radius: 10px; background: white; cursor: pointer; font-size: 0.78rem;
+    font-weight: 600; font-family: var(--font); color: var(--gray-600);
+    transition: all 0.15s; text-align: center; line-height: 1.3;
+  }
+  .alert-box:hover { border-color: var(--blue-light); background: var(--blue-pale); color: var(--blue); }
+  .alert-box.alert-active { border-color: #dc2626; background: #fef2f2; color: #dc2626; }
+  .alert-box .alert-icon { display: block; font-size: 1.2rem; margin-bottom: 3px; }
+  .alert-sub-panel {
+    border: 1.5px solid var(--gray-200); border-radius: 8px;
+    padding: 12px 14px; margin-bottom: 8px; background: #fafbfc;
+  }
+  .alert-sub-panel > label { font-size: 0.8rem; font-weight: 600; color: var(--gray-600); margin-bottom: 8px; display: block; }
+  .alert-sub-panel textarea { width: 100%; box-sizing: border-box; margin-top: 0; }
+  /* Extra vitals sets */
+  .extra-vitals-set { border: 1.5px solid var(--gray-200); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; background: var(--gray-100); }
+  .extra-vitals-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-weight: 700; font-size: 0.88rem; color: var(--gray-700); }
+  .ev-remove-btn { background: none; border: 1.5px solid var(--gray-300); border-radius: 6px; width: 26px; height: 26px; cursor: pointer; font-size: 1rem; color: var(--gray-400); display: flex; align-items: center; justify-content: center; }
+  .ev-remove-btn:hover { border-color: var(--red); color: var(--red); }
+  .extra-vitals-add-btn { display: flex; align-items: center; gap: 6px; margin-top: 4px; padding: 9px 16px; border: 1.5px dashed var(--blue-light); border-radius: 10px; background: var(--blue-pale); color: var(--blue); font-weight: 700; font-size: 0.88rem; cursor: pointer; width: 100%; justify-content: center; transition: all 0.15s; }
+  .extra-vitals-add-btn:hover { background: var(--blue-light); }
+
+  .befast-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 4px; }
+  .befast-field { display: flex; flex-direction: column; gap: 3px; }
+  .befast-field label { font-size: 0.75rem; font-weight: 600; color: var(--gray-500); }
+  .befast-field select { width: 100%; }
+  .stroke-scale-btn { padding: 6px 16px; border: 1.5px solid var(--gray-300); border-radius: 8px; background: white; color: var(--gray-600); font-weight: 600; font-size: 0.82rem; cursor: pointer; transition: all 0.15s; }
+  .stroke-scale-btn:hover { border-color: var(--blue); color: var(--blue); }
+  .stroke-scale-active { background: var(--blue) !important; color: white !important; border-color: var(--blue) !important; }
+  .stroke-scale-label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--gray-400); margin: 10px 0 4px; }
+
+  /* Pediatric Trauma Document */
+  .ped-doc { font-family: Arial, Helvetica, sans-serif; border: 2.5px solid #222; border-radius: 4px; overflow: hidden; font-size: 0.78rem; color: #000; }
+  .ped-doc-head { background: #da70d6; padding: 8px 12px; border-bottom: 2.5px solid #222; text-align: center; }
+  .ped-doc-title { font-size: 1.3rem; font-weight: 900; letter-spacing: 0.04em; color: #000; line-height: 1.1; }
+  .ped-doc-sub { font-size: 0.74rem; font-weight: 700; color: #000; margin-top: 4px; }
+  .ped-score-bar { display: flex; align-items: center; justify-content: space-between; padding: 5px 10px; background: #fff; border-bottom: 2px solid #222; font-weight: 700; font-size: 0.8rem; }
+  .ped-score-pill { padding: 2px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 700; background: #e2e8f0; color: #2d3748; }
+  .ped-score-pill.alert { background: #fed7d7; color: #9b2c2c; }
+  /* Scorecard table */
+  .ped-tbl { width: 100%; border-collapse: collapse; }
+  .ped-tbl th { background: #da70d6; border: 1.5px solid #222; padding: 5px 7px; font-weight: 900; font-size: 0.76rem; text-align: center; color: #000; }
+  .ped-tbl th:first-child { text-align: left; }
+  .ped-tbl td { border: 1.5px solid #222; padding: 5px 7px; vertical-align: top; background: #da70d6; color: #000; }
+  .ped-tbl .comp-col { font-weight: 900; font-size: 0.76rem; white-space: nowrap; }
+  .ped-norm-item { display: flex; gap: 4px; align-items: flex-start; margin-bottom: 2px; font-size: 0.74rem; }
+  .ped-norm-item:last-child { margin-bottom: 0; }
+  .ped-norm-box { width: 11px; height: 11px; border: 1.5px solid #333; flex-shrink: 0; margin-top: 1px; background: #fff; }
+  .ped-cb-label { display: flex; gap: 5px; align-items: flex-start; margin-bottom: 3px; cursor: pointer; font-size: 0.74rem; color: #000; user-select: none; }
+  .ped-cb-label:last-child { margin-bottom: 0; }
+  .ped-cb-label input[type=checkbox] { display: none; }
+  .ped-cb-box { width: 14px; height: 14px; border: 2px solid #333; background: #fff; flex-shrink: 0; margin-top: 1px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 900; color: transparent; }
+  .ped-cb-label.on .ped-cb-box { background: #1a2a4a; border-color: #1a2a4a; color: #fff; }
+  .ped-cb-label.on { font-weight: 700; }
+  /* OR sections */
+  .ped-or-sec { display: flex; align-items: stretch; border-top: 2px solid #222; }
+  .ped-or-badge-col { background: #fff; border-right: 2px solid #222; display: flex; align-items: center; justify-content: center; padding: 10px 8px; }
+  .ped-or-badge { background: #1a2a4a; color: #fff; border-radius: 50%; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 0.65rem; text-align: center; line-height: 1.2; flex-shrink: 0; }
+  .ped-or-body { flex: 1; padding: 8px 10px; background: #fff; }
+  .ped-or-body .ped-cb-label { font-size: 0.76rem; margin-bottom: 3px; }
+  /* PCS table */
+  .ped-pcs-title { background: #fff; padding: 5px 10px; font-weight: 900; font-size: 0.95rem; letter-spacing: 0.04em; text-align: center; border-bottom: 1.5px solid #222; }
+  .ped-pcs-cat { display: flex; border-bottom: 1.5px solid #222; }
+  .ped-pcs-cat:last-child { border-bottom: none; }
+  .ped-pcs-cat-name { background: #ccc; border-right: 1.5px solid #222; padding: 6px 8px; font-weight: 900; font-size: 0.74rem; display: flex; align-items: center; min-width: 72px; line-height: 1.3; }
+  .ped-pcs-opts { flex: 1; background: #da70d6; padding: 3px 6px; }
+  .ped-pcs-opt { display: flex; align-items: baseline; gap: 2px; padding: 2px 3px; border-radius: 2px; cursor: pointer; font-size: 0.74rem; color: #000; }
+  .ped-pcs-opt:hover { background: rgba(0,0,0,0.08); }
+  .ped-pcs-opt.on { background: rgba(0,0,0,0.18); font-weight: 700; }
+  .ped-pcs-opt input[type=radio] { display: none; }
+  .ped-pcs-dots { flex: 1; border-bottom: 1px dotted #444; margin: 0 3px 3px; }
+  .ped-pcs-val { font-weight: 700; flex-shrink: 0; }
+  .ped-pcs-total-row { background: #fff; padding: 5px 10px; font-weight: 700; font-size: 0.78rem; text-align: right; border-top: 1.5px solid #222; }
+  /* Adult Trauma Document */
+  .adt-doc { font-family: Arial, Helvetica, sans-serif; border: 2.5px solid #222; border-radius: 4px; overflow: hidden; font-size: 0.78rem; color: #000; }
+  .adt-doc-head { background: #1a2a4a; padding: 10px 12px; border-bottom: 2.5px solid #222; text-align: center; }
+  .adt-doc-title { font-size: 1.5rem; font-weight: 900; letter-spacing: 0.05em; color: #fff; line-height: 1.1; }
+  .adt-either-row { display: flex; align-items: stretch; border-bottom: 2px solid #222; background: #fff; }
+  .adt-either-badge-col { background: #fff; border-right: 2px solid #222; display: flex; align-items: center; justify-content: center; padding: 8px 10px; }
+  .adt-either-agency { flex: 1; padding: 6px 10px; display: flex; flex-direction: column; justify-content: center; }
+  .adt-either-agency-name { font-weight: 900; font-size: 0.85rem; text-align: center; }
+  .adt-either-agency-sub { font-size: 0.72rem; text-align: center; color: #333; margin-top: 3px; }
+  .adt-score-bar { display: flex; align-items: center; justify-content: space-between; padding: 5px 10px; background: #fff; border-bottom: 2px solid #222; font-weight: 700; font-size: 0.8rem; }
+  .adt-score-pill { padding: 2px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 700; background: #e2e8f0; color: #2d3748; }
+  .adt-score-pill.alert { background: #fed7d7; color: #9b2c2c; }
+  .adt-tbl { width: 100%; border-collapse: collapse; }
+  .adt-tbl th { border: 1.5px solid #222; padding: 5px 7px; font-weight: 900; font-size: 0.76rem; text-align: center; }
+  .adt-tbl th.adt-comp-h { background: #e8e8e8; text-align: left; width: 22%; }
+  .adt-tbl th.adt-pt1-h { background: #2e6eb4; color: #fff; }
+  .adt-tbl th.adt-pt2-h { background: #c0392b; color: #fff; }
+  .adt-tbl td { border: 1.5px solid #222; padding: 5px 7px; vertical-align: top; background: #fff; }
+  .adt-tbl td.adt-comp-td { font-weight: 900; font-size: 0.76rem; background: #e8e8e8; line-height: 1.35; }
+  .adt-tbl tr:nth-child(even) td { background: #f5f5f5; }
+  .adt-tbl tr:nth-child(even) td.adt-comp-td { background: #ddd; }
+  .adt-or-sec { display: flex; align-items: stretch; border-top: 2px solid #222; }
+  .adt-or-badge-col { background: #fff; border-right: 2px solid #222; display: flex; align-items: center; justify-content: center; padding: 10px 8px; min-width: 58px; }
+  .adt-or-badge { background: #1a2a4a; color: #fff; border-radius: 50%; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 0.63rem; text-align: center; line-height: 1.2; flex-shrink: 0; }
+  .adt-or-body { flex: 1; padding: 8px 10px; background: #fff; }
+  .adt-or-body .ped-cb-label { font-size: 0.76rem; margin-bottom: 3px; }
+  .adt-note { font-size: 0.7rem; color: #666; font-style: italic; padding: 2px 0 2px 19px; }
+  .adt-gcs-title { background: #c9956b; padding: 5px 10px; font-weight: 900; font-size: 0.95rem; letter-spacing: 0.04em; text-align: center; border-bottom: 1.5px solid #222; color: #000; }
+  .adt-gcs-cat { display: flex; border-bottom: 1.5px solid #222; }
+  .adt-gcs-cat:last-child { border-bottom: none; }
+  .adt-gcs-cat-name { background: #aaa; border-right: 1.5px solid #222; padding: 6px 8px; font-weight: 900; font-size: 0.74rem; display: flex; align-items: center; min-width: 72px; line-height: 1.3; }
+  .adt-gcs-opts { flex: 1; background: #c9956b; padding: 3px 6px; }
+  .adt-gcs-opt { display: flex; align-items: baseline; gap: 2px; padding: 2px 3px; border-radius: 2px; cursor: pointer; font-size: 0.74rem; color: #000; }
+  .adt-gcs-opt:hover { background: rgba(0,0,0,0.08); }
+  .adt-gcs-opt.on { background: rgba(0,0,0,0.18); font-weight: 700; }
+  .adt-gcs-opt input[type=radio] { display: none; }
+  .adt-gcs-total-row { background: #fff; padding: 5px 10px; font-weight: 700; font-size: 0.78rem; text-align: right; border-top: 1.5px solid #222; }
+
+  /* Elder Gray Document */
+  .eg-doc { font-family: Arial, Helvetica, sans-serif; border: 2.5px solid #000; overflow: hidden; font-size: 0.79rem; color: #000; background: #fff; }
+  .eg-header { background: #fff; padding: 10px 16px 8px; border-bottom: 2px solid #000; text-align: center; display: flex; align-items: center; gap: 12px; }
+  .eg-header-logo { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
+  .eg-logo-seal { width: 52px; height: 52px; border: 2px solid #000; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: #fff; overflow: hidden; }
+  .eg-logo-name { font-size: 0.58rem; font-weight: 900; text-align: center; margin-top: 2px; line-height: 1.2; color: #000; max-width: 60px; }
+  .eg-header-text { flex: 1; }
+  .eg-agency { font-size: 1.05rem; font-weight: 900; letter-spacing: 0.02em; color: #000; line-height: 1.2; }
+  .eg-title1 { font-size: 1rem; font-weight: 900; letter-spacing: 0.02em; color: #000; line-height: 1.2; margin-top: 1px; }
+  .eg-title2 { font-size: 1rem; font-weight: 900; letter-spacing: 0.02em; color: #000; line-height: 1.2; }
+  .eg-purpose { padding: 7px 12px; border-bottom: 1.5px solid #000; font-size: 0.77rem; background: #fff; }
+  .eg-intro { padding: 5px 12px 8px; border-bottom: 2px solid #000; font-size: 0.76rem; background: #fff; line-height: 1.45; }
+  .eg-body { display: grid; grid-template-columns: 1fr 1fr; background: #fff; }
+  .eg-col { padding: 8px 10px 10px; }
+  .eg-col-right { border-left: 2px solid #000; }
+  .eg-section-head { font-weight: 900; font-size: 0.77rem; margin-bottom: 5px; margin-top: 12px; }
+  .eg-col .eg-section-head:first-child { margin-top: 0; }
+  .eg-cb { display: flex; gap: 5px; align-items: flex-start; margin-bottom: 3px; cursor: pointer; font-size: 0.75rem; color: #000; user-select: none; }
+  .eg-cb input[type=checkbox] { display: none; }
+  .eg-cb-box { width: 13px; height: 13px; border: 1.5px solid #333; background: #fff; flex-shrink: 0; margin-top: 1px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 900; color: transparent; transition: all 0.1s; }
+  .eg-cb.on .eg-cb-box { background: #1a2a4a; border-color: #1a2a4a; color: #fff; }
+  .eg-cb.on { font-weight: 700; }
+  .eg-cb:hover .eg-cb-box { border-color: #1a2a4a; }
+
+  .sepsis-vitals { display: flex; gap: 10px; }
+  .sepsis-vital { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+  .sepsis-vital label { font-size: 0.75rem; font-weight: 600; color: var(--gray-500); }
+  .sepsis-vital .sepsis-hint { font-size: 0.67rem; color: var(--gray-400); margin-top: -2px; line-height: 1.3; min-height: 2.2em; }
+  .sepsis-vital input { width: 100%; box-sizing: border-box; }
+  .stemi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 4px; }
+  .stemi-lead {
+    padding: 8px 4px 6px; border: 2px solid var(--gray-300); border-radius: 8px;
+    background: white; cursor: pointer; font-size: 0.82rem; font-weight: 700;
+    font-family: var(--font); color: var(--gray-600); transition: all 0.15s;
+    text-align: center; display: flex; flex-direction: column; align-items: center; gap: 3px;
+  }
+  .stemi-lead:hover { border-color: #f59e0b; background: #fffbeb; color: #92400e; }
+  .stemi-lead.lead-active     { border-color: #dc2626; background: #fef2f2; color: #dc2626; }
+  .stemi-lead.lead-depressed  { border-color: #2563eb; background: #eff6ff; color: #2563eb; }
+  .stemi-lead svg { display: block; }
+
+  /* Thumbs section header bars (always visible) */
+  .bar-red    { border-left: 5px solid #dc2626; background: rgba(220,38,38,0.04);  border-radius: 4px; margin: 4px 0; padding: 6px 6px 6px 14px; }
+  .bar-orange { border-left: 5px solid #ea580c; background: rgba(234,88,12,0.04);  border-radius: 4px; margin: 4px 0; padding: 6px 6px 6px 14px; }
+  .bar-blue   { border-left: 5px solid #2563eb; background: rgba(37,99,235,0.04);  border-radius: 4px; margin: 4px 0; padding: 6px 6px 6px 14px; }
+  .bar-drop { padding: 4px 6px 8px 14px; margin: -2px 0 8px; }
+  .bar-drop-red    { border-left: 5px solid #dc2626; background: rgba(220,38,38,0.03); border-radius: 0 0 4px 4px; }
+  .bar-drop-orange { border-left: 5px solid #ea580c; background: rgba(234,88,12,0.03); border-radius: 0 0 4px 4px; }
+  .bar-drop-blue   { border-left: 5px solid #2563eb; background: rgba(37,99,235,0.03); border-radius: 0 0 4px 4px; }
+
+
+  /* Auto-populated field indicator */
+  .auto-dot {
+    display: inline-block; width: 8px; height: 8px; background: var(--red);
+    border-radius: 50%; margin-right: 5px; vertical-align: middle; flex-shrink: 0;
+  }
+
+  /* Thumbs toggle */
+  .thumbs-group { display: flex; gap: 8px; margin-top: 2px; }
+  .thumbs-btn {
+    width: 42px; height: 42px; border-radius: 10px;
+    border: 1.5px solid var(--gray-300); background: white;
+    cursor: pointer; transition: all 0.15s;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--gray-400);
+  }
+  .thumbs-btn:hover { border-color: var(--gray-400); background: var(--gray-50); color: var(--gray-600); }
+  .thumbs-btn.thumbs-up.tb-active  { background: #dcfce7; border-color: #16a34a; color: #16a34a; }
+  .thumbs-btn.thumbs-down.tb-active { background: #fee2e2; border-color: #dc2626; color: #dc2626; }
+  .thumbs-help { position: relative; display: inline-flex; align-items: center; margin-left: 6px; }
+  .thumbs-help-btn {
+    width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--gray-400);
+    background: white; color: var(--gray-500); font-size: 0.65rem; font-weight: 700;
+    cursor: default; display: flex; align-items: center; justify-content: center;
+    font-family: var(--font); line-height: 1; flex-shrink: 0;
+  }
+  .thumbs-tooltip {
+    display: none; position: absolute; left: 26px; top: 50%; transform: translateY(-50%);
+    background: var(--gray-900); color: white; font-size: 0.75rem; line-height: 1.5;
+    padding: 8px 11px; border-radius: 8px; white-space: nowrap; z-index: 300;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2); pointer-events: none;
+  }
+  .thumbs-tooltip::before {
+    content: ''; position: absolute; right: 100%; top: 50%; transform: translateY(-50%);
+    border: 5px solid transparent; border-right-color: var(--gray-900);
+  }
+  .thumbs-help:hover .thumbs-tooltip { display: block; }
+  .abcs-life-threat-label {
+    font-size: 0.78rem; font-weight: 600; color: var(--red);
+    margin-bottom: 4px; display: block;
+  }
+
+  /* Hospital autocomplete */
+  .hosp-wrap { position: relative; }
+  .hosp-wrap input[type="text"] { width: 100%; }
+  .hosp-dropdown {
+    display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 200;
+    background: white; border: 1.5px solid var(--blue-light); border-radius: 10px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.12); overflow: hidden; max-height: 220px; overflow-y: auto;
+  }
+  .hosp-dropdown.open { display: block; }
+  .hosp-option {
+    padding: 10px 14px; cursor: pointer; font-size: 0.9rem; color: var(--gray-700);
+    transition: background 0.1s;
+  }
+  .hosp-option:hover, .hosp-option.hosp-focused { background: var(--blue-pale); color: var(--blue); }
+  .hosp-option .hosp-match { font-weight: 700; color: var(--blue); }
+  .section-divider {
+    font-size: 0.72rem; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase;
+    color: var(--blue); border-bottom: 1.5px solid var(--blue-light);
+    padding-bottom: 5px; margin: 22px 0 2px;
+  }
+  .section-divider:first-child { margin-top: 4px; }
+  /* ALS / BLS toggle */
+  .als-bls-wrap { margin-bottom: 20px; }
+  .als-bls-label { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--gray-500); margin-bottom: 6px; }
+  .als-bls-banner { display: flex; border-radius: 12px; overflow: hidden; border: 2px solid var(--blue); }
+  .als-bls-btn {
+    flex: 1; padding: 16px 10px; font-size: 1.15rem; font-weight: 800; letter-spacing: 0.06em;
+    border: none; cursor: pointer; transition: all 0.15s; background: white; color: var(--gray-400);
+  }
+  .als-bls-btn + .als-bls-btn { border-left: 2px solid var(--blue); }
+  .als-bls-btn.als-active { background: var(--blue); color: white; }
+  .als-bls-btn.bls-active { background: #16a34a; color: white; border-color: #16a34a; }
+  .als-bls-banner.bls-mode { border-color: #16a34a; }
+  .als-bls-banner.bls-mode .als-bls-btn + .als-bls-btn { border-color: #16a34a; }
+
+  .step-toggle-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--gray-100); border: 1.5px solid var(--gray-200);
+    border-radius: 10px; padding: 10px 14px; margin-bottom: 18px;
+  }
+  .step-toggle-title { font-weight: 700; font-size: 0.95rem; color: var(--gray-700); }
+  .step-toggle-btns { display: flex; gap: 8px; }
+  .toggle-btn {
+    width: 38px; height: 38px; border-radius: 8px; border: 2px solid var(--gray-300);
+    background: white; font-size: 1.1rem; cursor: pointer; font-family: var(--font);
+    transition: all 0.15s; display: flex; align-items: center; justify-content: center;
+  }
+  .toggle-btn.toggle-check.active { background: #dcfce7; border-color: #16a34a; color: #16a34a; }
+  .toggle-btn.toggle-cross.active { background: #fee2e2; border-color: var(--red); color: var(--red); }
+  .toggle-btn:not(.active) { color: var(--gray-400); }
+
+  /* Yes/No toggle */
+  .yesno-group { display: flex; gap: 8px; margin-top: 2px; }
+  .yesno-btn {
+    padding: 8px 24px; border-radius: 7px; font-size: 0.88rem; font-weight: 600;
+    cursor: pointer; border: 1.5px solid var(--gray-300); background: white;
+    color: var(--gray-700); font-family: var(--font); transition: all 0.15s;
+  }
+  .yesno-btn:hover { border-color: var(--blue-light); background: var(--blue-pale); }
+  .yesno-btn.yn-active { background: var(--blue); border-color: var(--blue); color: white; }
+
+  /* Buttons */
+  .btn-row { display: flex; gap: 10px; margin-top: 24px; align-items: center; }
+  .btn {
+    padding: 10px 22px; border-radius: 8px; font-size: 0.88rem; font-weight: 600;
+    cursor: pointer; border: none; transition: all 0.15s;
+    display: inline-flex; align-items: center; gap: 6px; font-family: var(--font);
+  }
+  .btn-primary { background: var(--blue); color: white; }
+  .btn-primary:hover { background: #1d35a0; }
+  .btn-secondary { background: white; color: var(--gray-700); border: 1.5px solid var(--gray-300); }
+  .btn-secondary:hover { background: var(--gray-100); }
+  .btn-green { background: var(--green); color: white; }
+  .btn-green:hover { background: #14692f; }
+  .btn-lg { padding: 13px 28px; font-size: 0.95rem; }
+  .btn-skip {
+    margin-left: auto; background: transparent; color: var(--gray-500);
+    font-size: 0.82rem; border: none; padding: 10px 12px; cursor: pointer;
+    font-weight: 500; font-family: var(--font); display: inline-flex; align-items: center; gap: 5px;
+  }
+  .btn-skip:hover { color: var(--gray-700); }
+  .btn-demo { background: #f0f9ff; color: #0369a1; border: 1.5px solid #bae6fd; font-size: 0.82rem; padding: 8px 14px; }
+  .btn-demo:hover { background: #e0f2fe; }
+
+  /* Review */
+  .review-section { border: 1.5px solid var(--gray-200); border-radius: 10px; margin-bottom: 12px; overflow: hidden; }
+  .review-section-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 11px 16px; background: var(--gray-100); border-bottom: 1px solid var(--gray-200);
+  }
+  .review-section-header h3 { font-size: 0.82rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--gray-700); }
+  .skipped-tag { font-size: 0.72rem; background: var(--gray-200); color: var(--gray-500); padding: 2px 8px; border-radius: 10px; }
+  .btn-edit { font-size: 0.78rem; color: var(--blue); background: none; border: none; cursor: pointer; font-weight: 600; font-family: var(--font); padding: 3px 8px; border-radius: 5px; }
+  .btn-edit:hover { background: var(--blue-pale); }
+  .review-body { padding: 13px 16px; }
+  .review-field { display: flex; gap: 10px; margin-bottom: 6px; font-size: 0.84rem; }
+  .review-label { color: var(--gray-500); min-width: 130px; font-weight: 500; flex-shrink: 0; }
+  .review-value { color: var(--gray-900); }
+
+  /* Narrative */
+  .narrative-box {
+    background: #fefefe; border: 1.5px solid var(--gray-200); border-radius: 10px;
+    padding: 22px; font-size: 0.92rem; line-height: 1.8; color: var(--gray-900);
+    font-family: 'Georgia', serif; margin-bottom: 14px;
+  }
+  .narrative-box p { margin-bottom: 0.9em; }
+  .narrative-box p:last-child { margin-bottom: 0; }
+  .copy-notice { font-size: 0.8rem; color: var(--green); font-weight: 600; display: none; align-items: center; gap: 5px; }
+  .copy-notice.show { display: flex; }
+</style>
+</head>
+<body>
+
+<header>
+  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"></path>
+    <path d="M3.22 12H9.5l.5-1 2 4.5 2-7 1.5 3.5h5.27"></path>
+  </svg>
+  <div>
+    <h1>PCR Narrative Builder</h1>
+    <p>Paramedic documentation — modified SOAP format</p>
+  </div>
+</header>
+
+<div class="container">
+  <div class="progress-bar" id="progressBar"><div class="step-dot active" onclick="goToStep(0)" style="cursor:pointer"><div class="dot-circle">1</div><div class="dot-label">Dispatch</div></div><div class="step-dot " onclick="goToStep(1)" style="cursor:pointer"><div class="dot-circle">2</div><div class="dot-label">Scene</div></div><div class="step-dot " onclick="goToStep(2)" style="cursor:pointer"><div class="dot-circle">3</div><div class="dot-label">Primary Ax</div></div><div class="step-dot " onclick="goToStep(5)" style="cursor:pointer"><div class="dot-circle">6</div><div class="dot-label">Secondary Ax</div></div><div class="step-dot " onclick="goToStep(6)" style="cursor:pointer"><div class="dot-circle">7</div><div class="dot-label">Hospital</div></div></div>
+  <div id="stepContainer">
+    <div class="card">
+      <div class="card-header">
+        <div class="step-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></div>
+        <div><h2>Step 1 — Dispatch</h2><p>Unit identification and initial call information.</p></div>
+      </div>
+      <div class="field-group">
+        <div class="als-bls-wrap">
+          <div class="als-bls-label">Service Level</div>
+          <div class="als-bls-banner" id="als_bls_banner">
+            <button type="button" class="als-bls-btn als-active" onclick="setServiceLevel('als')">ALS</button>
+            <button type="button" class="als-bls-btn" onclick="setServiceLevel('bls')">BLS</button>
+          </div>
+          <input type="hidden" id="f_service_level" value="als">
+        </div><div class="field">
+        <label>Unit # <span style="color:var(--red)">*</span></label>
+        <div id="units_container"><div class="unit-row" id="unit_row_0">
+          <select class="unit-type-select" onchange="syncUnits()"><option value="Rescue" selected="selected">Rescue</option><option value="Engine">Engine</option><option value="Truck">Truck</option><option value="Chief">Chief</option></select>
+          <input type="text" class="unit-num-input" placeholder="e.g. 24" oninput="syncUnits()">
+          
+          <button type="button" class="unit-add-btn" id="unit_add_btn" onclick="addUnit()">+</button>
+        </div></div>
+        <input type="hidden" id="f_unit" value="">
+      </div><div class="field">
+        <label>Pt Age &amp; Sex <span style="color:var(--red)">*</span></label>
+        <input type="text" id="f_patient" placeholder="e.g. 55m">
+      </div><div class="field">
+        <label>Dispatch Complaint <span style="color:var(--red)">*</span></label>
+        <div class="checklist-chips" id="chips_dispatch_complaint"><button type="button" class="checklist-chip" onclick="selectQuickOption('dispatch_complaint', 'Sick Person', this)">Sick Person</button><button type="button" class="checklist-chip" onclick="selectQuickOption('dispatch_complaint', 'Breathing Problems', this)">Breathing Problems</button><button type="button" class="checklist-chip" onclick="selectQuickOption('dispatch_complaint', 'Chest pain', this)">Chest pain</button><button type="button" class="checklist-chip" onclick="selectQuickOption('dispatch_complaint', 'Hemorrhage', this)">Hemorrhage</button></div>
+        <input type="text" class="checklist-other" id="other_dispatch_complaint" placeholder="Other complaint..." oninput="syncQuickOther('dispatch_complaint')">
+        <input type="hidden" id="f_dispatch_complaint" value="">
+      </div></div>
+      <div class="btn-row">
+        
+        <button class="btn btn-primary" onclick="goNext(0)">
+          Next →
+        </button>
+<button class="btn-skip" onclick="skipStep(0)">Skip ↷</button>
+      </div>
+    </div></div>
+</div>
+
+<script>
+const STEPS = [
+  {
+    id: 'dispatch', label: 'Dispatch', title: 'Step 1 — Dispatch',
+    desc: 'Unit identification and initial call information.',
+    icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`,
+    fields: [
+      { id: 'service_level', type: 'als_bls' },
+      { id: 'unit', label: 'Unit #', type: 'units', placeholder: 'e.g. Rescue 13', required: true },
+      { id: 'patient', label: 'Pt Age & Sex', placeholder: 'e.g. 55m', required: true },
+      { id: 'dispatch_complaint', label: 'Dispatch Complaint', type: 'quickselect', options: ['Sick Person','Breathing Problems','Chest pain','Hemorrhage'], placeholder: 'Other complaint...', required: true },
+    ]
+  },
+  {
+    id: 'scene', label: 'Scene', title: 'Step 2 — Scene',
+    desc: 'How and by whom the patient was found.',
+    icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>`,
+    fields: [
+      { id: 'disposition', label: 'Disposition', type: 'select', default: 'Transported by EMS', options: ['Transported by EMS','Patient refused transport (AMA)','Refused assessment (RA)','Transferred to Transcare','DOA / pronounced on scene','Cancelled en route','Cancelled by TPD'] },
+      { id: 'patient_found', label: 'Patient was found...', type: 'foundselect', placeholder: 'e.g. sitting on a chair...', required: true, cancelledHidden: true },
+      { id: 'scene_notes', label: 'Scene Notes', type: 'textarea', placeholder: 'Additional details, bystanders, environment...', opt: true, cancelledHidden: true },
+      { id: 'moi_noi', label: 'Chief Complaint', type: 'quickselect', options: ['Chest pain','Abdominal pain','DIB','General illness'], placeholder: 'Other complaint...', required: true, cancelledHidden: true },
+    ]
+  },
+  {
+    id: 'primary_assessment', label: 'Primary Ax', title: 'Step 3 — Primary Assessment',
+    desc: 'Chief complaint, history, exam, vitals, and on-scene treatment.',
+    icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>`,
+    fields: [
+      { id: '_performed', type: 'step_toggle', label: 'Primary Ax' },
+      { id: 'avpu', label: 'AVPU', type: 'chipselect', options: ['Alert', 'Verbal', 'Painful', 'Unresponsive'], default: 'Alert' },
+      { id: 'mental_status', label: 'Mental Status', type: 'select', default: 'Alert and oriented x3', options: ['Alert and oriented x3','Alert and oriented x2','Alert and oriented x1','Altered mental status','Unresponsive'] },
+      { id: 'gcs', label: 'GCS', placeholder: 'e.g. 15', default: '15' },
+      { id: 'abcs_ok', label: 'ABCs Assessment', type: 'thumbs', bar: 'red', required: true },
+      { id: 'abcs', label: 'ABC assessment revealed...', type: 'textarea', placeholder: 'ABC assessment revealed...', opt: true, showWhen: { field: 'abcs_ok', value: 'down' } },
+      { id: 'abcs_interventions', label: 'Interventions', type: 'textarea', placeholder: 'e.g. O2 via NRB at 15 LPM; cardiac monitor applied', opt: true, showWhen: { field: 'abcs_ok', value: 'down' } },
+      { id: 'abcs_pt_response', label: 'Patient Response', type: 'pt_response', opt: true, showWhen: { field: 'abcs_ok', value: 'down' } },
+      { id: 'vitals_ok', label: 'Vital Signs', type: 'thumbs', controlsVitals: true, bar: 'orange', required: true },
+      { id: '_vitals_header', type: 'header' },
+      { id: 'hr',   label: 'HR',   unit: 'bpm',   type: 'vital', opt: true },
+      { id: 'bp',   label: 'BP',   unit: 'mmHg',  type: 'vital', opt: true },
+      { id: 'rr',   label: 'RR',   unit: '/min',  type: 'vital', opt: true },
+      { id: 'spo2', label: 'SpO₂', unit: '%',     type: 'vital', opt: true },
+      { id: 'bgl',  label: 'BGL',  unit: 'mg/dL', type: 'vital', opt: true, checkbox: true },
+      { id: 'temp', label: 'Temp', unit: '°',     type: 'vital', opt: true },
+      { id: 'lung_sounds', label: 'Lung Sounds', type: 'vital_select', options: ['Clear and equal bilaterally','Diminished bilaterally','Diminished left','Diminished right','Crackles bilateral','Crackles lower lobes','Wheezing bilateral','Absent bilateral'] },
+      { id: 'ekg',       label: '4 Lead EKG',  type: 'vital_select', options: ['Normal sinus rhythm','Sinus tachycardia','Sinus bradycardia','Atrial fibrillation (AFib)','Atrial flutter','SVT','Ventricular tachycardia (VTach)','Ventricular fibrillation (VFib)','1° Heart block','2° Heart block (Mobitz I)','2° Heart block (Mobitz II)','3° Heart block','Paced rhythm','Asystole'], checkbox: true, als_only: true },
+      { id: 'ekg_12lead', label: '12 Lead EKG', type: 'vital_select', options: ['No acute findings','LBBB (Left Bundle Branch Block)','RBBB (Right Bundle Branch Block)','LBBB — STEMI equivalent (Sgarbossa criteria)','ST elevation — anterior (V1–V4)','ST elevation — anterolateral (I, aVL, V1–V6)','ST elevation — inferior (II, III, aVF)','ST elevation — lateral (I, aVL, V5–V6)','ST elevation — posterior pattern','Diffuse ST elevation (pericarditis pattern)','ST depression (ischemia)','Diffuse T-wave inversions','Wellens\' syndrome (Type A or B)','De Winter T-waves (anterior STEMI equivalent)','QT prolongation','Brugada pattern','WPW (Wolff-Parkinson-White) pattern','LVH (Left Ventricular Hypertrophy)','RVH (Right Ventricular Hypertrophy)','Peaked T-waves (hyperkalemia)','Early repolarization pattern'], checkbox: true, als_only: true },
+      { id: 'pain',   label: 'Pain (0–10)', type: 'vital_select', options: ['0/10','1/10','2/10','3/10','4/10','5/10','6/10','7/10','8/10','9/10','10/10'] },
+      { id: 'pupils', label: 'Pupils',      type: 'vital_select', options: ['Equal and reactive','Unequal — left larger','Unequal — right larger','Non-reactive bilaterally','Dilated bilaterally','Constricted bilaterally','Sluggish bilaterally'] },
+      { id: 'vitals_interventions', label: 'Interventions', type: 'textarea', placeholder: 'e.g. O2 via NRB at 15 LPM; cardiac monitor applied', opt: true, showWhen: { field: 'vitals_ok', value: 'down' } },
+      { id: 'vitals_pt_response', label: 'Patient Response', type: 'pt_response', opt: true, showWhen: { field: 'vitals_ok', value: 'down' } },
+      { id: 'pertinent_negatives', label: 'Pertinent Negatives', type: 'checklist', options: ['Chest pain','DIB','LOC','Dizziness','Medication change','Headache','Vision changes','Motor/sensory deficit'], opt: true },
+
+      { id: 'assessment_type', label: 'Assessment Type', type: 'select', default: 'Focused assessment', options: ['Head to toe','Focused assessment'] },
+      { id: 'assessment_ok', label: 'Assessment Notes', type: 'thumbs', bar: 'blue', required: true },
+      { id: 'assessment_notes', label: 'Findings', type: 'textarea', placeholder: 'Leave blank for default: "did not reveal any DCAP-BTLS"', opt: true, showWhen: { field: 'assessment_ok', value: 'down' } },
+      { id: 'assessment_interventions', label: 'Interventions', type: 'textarea', placeholder: 'e.g. O2 via NRB at 15 LPM; cardiac monitor applied', opt: true, showWhen: { field: 'assessment_ok', value: 'down' } },
+      { id: 'assessment_pt_response', label: 'Patient Response', type: 'pt_response', opt: true, showWhen: { field: 'assessment_ok', value: 'down' } },
+      { id: 'alerts', label: 'Medical Alerts', type: 'alert_panel', opt: true },
+      { id: 'opqrst_present', label: 'Was OPQRST completed?', type: 'yesno', required: true },
+      { id: 'opqrst_ok', label: 'OPQRST Notes', type: 'thumbs', showWhen: { field: 'opqrst_present', value: 'yes' } },
+      { id: 'opqrst', label: 'Pertinent Findings', type: 'textarea', placeholder: 'OPQRST assessment revealed...', opt: true, showWhen: { field: 'opqrst_ok', value: 'down' } },
+      { id: 'sample_ok', label: 'SAMPLE Notes', type: 'thumbs', required: true },
+      { id: 'sample', label: 'Pertinent Findings', type: 'textarea', placeholder: 'SAMPLE assessment revealed...', opt: true, showWhen: { field: 'sample_ok', value: 'down' } },
+      { id: 'stretcher_movement', label: 'Patient Moved to Stretcher Via', type: 'select', options: ['Extremity lift','Walk-assisted','Stair chair','Scoop stretcher','Self-ambulatory','Sheet lift','Backboard'], required: true },
+    ]
+  },
+  {
+    id: 'trauma_criteria', label: 'Trauma Ax', title: 'Trauma Alert Criteria',
+    desc: 'Document trauma alert criteria and findings.',
+    icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
+    fields: [{ id: 'trauma_type', type: 'trauma_type' }, { id: 'ped_criteria', type: 'hidden_json' }, { id: 'adult_criteria', type: 'hidden_json' }]
+  },
+  {
+    id: 'elder_gray_criteria', label: 'Elder Gray', title: 'Elder Gray Criteria',
+    desc: 'Document elder gray alert criteria and findings.',
+    icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
+    fields: [{ id: 'elder_gray_data', type: 'elder_gray_panel' }]
+  },
+  {
+    id: 'secondary_assessment', label: 'Secondary Ax', title: 'Step 4 — Secondary Assessment',
+    desc: 'En route reassessment, treatments, transport, and disposition.',
+    icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>`,
+    fields: [
+      { id: '_performed', type: 'step_toggle', label: 'Secondary Ax' },
+      { id: 'avpu', label: 'AVPU', type: 'chipselect', options: ['Alert', 'Verbal', 'Painful', 'Unresponsive'], default: 'Alert' },
+      { id: 'mental_status', label: 'Mental Status', type: 'select', default: 'Alert and oriented x3', options: ['Alert and oriented x3','Alert and oriented x2','Alert and oriented x1','Altered mental status','Unresponsive'] },
+      { id: 'gcs', label: 'GCS', placeholder: 'e.g. 15', default: '15' },
+      { id: 'abcs_ok', label: 'ABCs Reassessment', type: 'thumbs', bar: 'red', required: true },
+      { id: 'abcs', label: 'ABC assessment revealed...', type: 'textarea', placeholder: 'ABC assessment revealed...', opt: true, showWhen: { field: 'abcs_ok', value: 'down' } },
+      { id: 'abcs_interventions', label: 'En Route Interventions', type: 'textarea', placeholder: 'e.g. Additional treatments administered en route...', opt: true, showWhen: { field: 'abcs_ok', value: 'down' } },
+      { id: 'abcs_pt_response', label: 'Patient Response', type: 'pt_response', opt: true, showWhen: { field: 'abcs_ok', value: 'down' } },
+      { id: 'vitals_ok', label: 'Vital Signs', type: 'thumbs', controlsVitals: true, bar: 'orange', required: true },
+      { id: '_vitals_header', type: 'header' },
+      { id: 'hr',   label: 'HR',   unit: 'bpm',   type: 'vital', opt: true },
+      { id: 'bp',   label: 'BP',   unit: 'mmHg',  type: 'vital', opt: true },
+      { id: 'rr',   label: 'RR',   unit: '/min',  type: 'vital', opt: true },
+      { id: 'spo2', label: 'SpO₂', unit: '%',     type: 'vital', opt: true },
+      { id: 'bgl',  label: 'BGL',  unit: 'mg/dL', type: 'vital', opt: true, checkbox: true },
+      { id: 'temp', label: 'Temp', unit: '°',     type: 'vital', opt: true },
+      { id: 'lung_sounds', label: 'Lung Sounds', type: 'vital_select', options: ['Clear and equal bilaterally','Diminished bilaterally','Diminished left','Diminished right','Crackles bilateral','Crackles lower lobes','Wheezing bilateral','Absent bilateral'], opt: true },
+      { id: 'ekg',       label: '4 Lead EKG',  type: 'vital_select', options: ['Normal sinus rhythm','Sinus tachycardia','Sinus bradycardia','Atrial fibrillation (AFib)','Atrial flutter','SVT','Ventricular tachycardia (VTach)','Ventricular fibrillation (VFib)','1° Heart block','2° Heart block (Mobitz I)','2° Heart block (Mobitz II)','3° Heart block','Paced rhythm','Asystole'], checkbox: true },
+      { id: 'ekg_12lead', label: '12 Lead EKG', type: 'vital_select', options: ['No acute findings','LBBB (Left Bundle Branch Block)','RBBB (Right Bundle Branch Block)','LBBB — STEMI equivalent (Sgarbossa criteria)','ST elevation — anterior (V1–V4)','ST elevation — anterolateral (I, aVL, V1–V6)','ST elevation — inferior (II, III, aVF)','ST elevation — lateral (I, aVL, V5–V6)','ST elevation — posterior pattern','Diffuse ST elevation (pericarditis pattern)','ST depression (ischemia)','Diffuse T-wave inversions','Wellens\' syndrome (Type A or B)','De Winter T-waves (anterior STEMI equivalent)','QT prolongation','Brugada pattern','WPW (Wolff-Parkinson-White) pattern','LVH (Left Ventricular Hypertrophy)','RVH (Right Ventricular Hypertrophy)','Peaked T-waves (hyperkalemia)','Early repolarization pattern'], opt: true, checkbox: true },
+      { id: 'pain',   label: 'Pain (0–10)', type: 'vital_select', options: ['0/10','1/10','2/10','3/10','4/10','5/10','6/10','7/10','8/10','9/10','10/10'] },
+      { id: 'pupils', label: 'Pupils',      type: 'vital_select', options: ['Equal and reactive','Unequal — left larger','Unequal — right larger','Non-reactive bilaterally','Dilated bilaterally','Constricted bilaterally','Sluggish bilaterally'] },
+      { id: 'vitals_interventions', label: 'En Route Interventions', type: 'textarea', placeholder: 'e.g. Additional treatments administered en route...', opt: true, showWhen: { field: 'vitals_ok', value: 'down' } },
+      { id: 'vitals_pt_response', label: 'Patient Response', type: 'pt_response', opt: true, showWhen: { field: 'vitals_ok', value: 'down' } },
+      { id: 'extra_vitals_list', type: 'extra_vitals' },
+      { id: 'assessment_type', label: 'Assessment Type', type: 'select', default: 'Head to toe', options: ['Head to toe','Focused assessment'] },
+      { id: 'assessment_ok', label: 'Assessment Notes', type: 'thumbs', bar: 'blue', required: true },
+      { id: 'assessment_notes', label: 'Findings', type: 'textarea', placeholder: 'Leave blank for default: "did not reveal any DCAP-BTLS"', opt: true, showWhen: { field: 'assessment_ok', value: 'down' } },
+      { id: 'assessment_interventions', label: 'En Route Interventions', type: 'textarea', placeholder: 'e.g. Additional treatments administered en route...', opt: true, showWhen: { field: 'assessment_ok', value: 'down' } },
+      { id: 'assessment_pt_response', label: 'Patient Response', type: 'pt_response', opt: true, showWhen: { field: 'assessment_ok', value: 'down' } },
+      { id: 'reassessment', label: 'Additional Notes', type: 'textarea', placeholder: 'e.g. No change in condition en route', opt: true },
+    ]
+  },
+  {
+    id: 'hospital', label: 'Hospital', title: 'Step 5 — Hospital',
+    desc: 'Transport details, receiving facility, and disposition.',
+    icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/><line x1="12" y1="5" x2="12" y2="9"/><line x1="10" y1="7" x2="14" y2="7"/></svg>`,
+    fields: [
+      { id: 'transport_position', label: 'Transport Position', type: 'select', default: "Semi-Fowler's", options: ["Supine","Semi-Fowler's","Position of comfort","Left lateral recumbent","Trendelenburg","Spinal precautions"] },
+      { id: 'receiving_facility', label: 'Receiving Facility', type: 'hospitalselect', required: true },
+      { id: 'receiving_staff', label: 'Report Given To', type: 'select', default: 'RN assuming care', options: ['RN assuming care','Doctor assuming care','Hospital Staff'], opt: true },
+      { id: 'bed_transfer', label: 'Patient Moved to Hospital Bed Via', type: 'select', options: ['Extremity lift','Walk-assisted','Slide board','Draw sheet','Self-ambulatory','Sheet lift','Scoop stretcher','Backboard'], required: true },
+    ]
+  }
+];
+
+let state = { current: 0, data: {}, skipped: {}, view: 'steps' };
+
+// ── Rendering ────────────────────────────────────────────────
+
+// ── Extra Vitals (Secondary Ax) ─────────────────────────────
+const EV_LUNG = ['Clear and equal bilaterally','Diminished bilaterally','Diminished left','Diminished right','Crackles bilateral','Crackles lower lobes','Wheezing bilateral','Absent bilateral'];
+const EV_EKG    = ['Normal sinus rhythm','Sinus tachycardia','Sinus bradycardia','Atrial fibrillation (AFib)','Atrial flutter','SVT','Ventricular tachycardia (VTach)','Ventricular fibrillation (VFib)','1° Heart block','2° Heart block (Mobitz I)','2° Heart block (Mobitz II)','3° Heart block','Paced rhythm','Asystole'];
+const EV_EKG12  = ['No acute findings','LBBB (Left Bundle Branch Block)','RBBB (Right Bundle Branch Block)','LBBB — STEMI equivalent (Sgarbossa criteria)','ST elevation — anterior (V1–V4)','ST elevation — anterolateral (I, aVL, V1–V6)','ST elevation — inferior (II, III, aVF)','ST elevation — lateral (I, aVL, V5–V6)','ST elevation — posterior pattern','Diffuse ST elevation (pericarditis pattern)','ST depression (ischemia)','Diffuse T-wave inversions','Wellens\' syndrome (Type A or B)','De Winter T-waves (anterior STEMI equivalent)','QT prolongation','Brugada pattern','WPW (Wolff-Parkinson-White) pattern','LVH (Left Ventricular Hypertrophy)','RVH (Right Ventricular Hypertrophy)','Peaked T-waves (hyperkalemia)','Early repolarization pattern'];
+const EV_PAIN = ['0/10','1/10','2/10','3/10','4/10','5/10','6/10','7/10','8/10','9/10','10/10'];
+const EV_PUP  = ['Equal and reactive','Unequal — left larger','Unequal — right larger','Non-reactive bilaterally','Dilated bilaterally','Constricted bilaterally','Sluggish bilaterally'];
+const EV_PR   = ['Deteriorated','Did Not Tolerate','No Change','Tolerated Well','Partially Improved','Resolved'];
+
+function _evSelOpts(opts, val) {
+  return `<option value="">—</option>` + opts.map(o => `<option value="${o}"${val===o?' selected':''}>${o}</option>`).join('');
+}
+
+function buildExtraVitalsHTML(ev, idx) {
+  return `<div class="extra-vitals-set" id="ev_set_${idx}">
+    <div class="extra-vitals-header">
+      <span>Vitals Set ${idx + 2}</span>
+      <button type="button" class="ev-remove-btn" onclick="removeExtraVitals(${idx})" title="Remove">×</button>
+    </div>
+    <div class="field"><label>Vital Signs <span class="opt">optional</span></label>
+      <div class="vitals-grid">
+        <div class="vital-tile"><label>HR</label><input type="text" placeholder="—" value="${ev.hr||''}" oninput="updateExtraVital(${idx},'hr',this.value)"><div class="unit">bpm</div></div>
+        <div class="vital-tile"><label>BP</label><input type="text" placeholder="—" value="${ev.bp||''}" oninput="updateExtraVital(${idx},'bp',this.value)"><div class="unit">mmHg</div></div>
+        <div class="vital-tile"><label>RR</label><input type="text" placeholder="—" value="${ev.rr||''}" oninput="updateExtraVital(${idx},'rr',this.value)"><div class="unit">/min</div></div>
+        <div class="vital-tile"><label>SpO₂</label><input type="text" placeholder="—" value="${ev.spo2||''}" oninput="updateExtraVital(${idx},'spo2',this.value)"><div class="unit">%</div></div>
+        <div class="vital-tile"><label>BGL</label><input type="text" placeholder="—" value="${ev.bgl||''}" oninput="updateExtraVital(${idx},'bgl',this.value)"><div class="unit">mg/dL</div></div>
+        <div class="vital-tile"><label>Temp</label><input type="text" placeholder="—" value="${ev.temp||''}" oninput="updateExtraVital(${idx},'temp',this.value)"><div class="unit">°</div></div>
+        <div class="vital-tile vital-tile-wide"><label>Lung Sounds</label><select class="vital-select" onchange="updateExtraVital(${idx},'lung_sounds',this.value)">${_evSelOpts(EV_LUNG, ev.lung_sounds||'')}</select></div>
+        <div class="vital-tile vital-tile-wide"><label>4 Lead EKG</label><select class="vital-select" onchange="updateExtraVital(${idx},'ekg',this.value)">${_evSelOpts(EV_EKG, ev.ekg||'')}</select></div>
+        <div class="vital-tile vital-tile-wide"><label>12 Lead EKG</label><select class="vital-select" onchange="updateExtraVital(${idx},'ekg_12lead',this.value)">${_evSelOpts(EV_EKG12, ev.ekg_12lead||'')}</select></div>
+        <div class="vital-tile"><label>Pain (0–10)</label><select class="vital-select" onchange="updateExtraVital(${idx},'pain',this.value)">${_evSelOpts(EV_PAIN, ev.pain||'')}</select></div>
+        <div class="vital-tile vital-tile-wide"><label>Pupils</label><select class="vital-select" onchange="updateExtraVital(${idx},'pupils',this.value)">${_evSelOpts(EV_PUP, ev.pupils||'')}</select></div>
+      </div>
+    </div>
+    <div class="field">
+      <label>Interventions <span class="opt">optional</span></label>
+      <textarea placeholder="e.g. Additional treatments administered en route..." oninput="updateExtraVital(${idx},'interventions',this.value)">${ev.interventions||''}</textarea>
+    </div>
+    <div class="field">
+      <label>Patient Response <span class="opt">optional</span></label>
+      <div class="checklist-chips pr-chips ev-pr-chips" id="ev_pr_${idx}">
+        ${EV_PR.map(o => `<button type="button" class="checklist-chip pr-chip${ev.pt_response===o?' chip-active':''}" onclick="selectExtraVitalPR(${idx},'${o}',this)">${o}</button>`).join('')}
+      </div>
+      <div class="pr-gradient-bar" aria-hidden="true"><div class="pr-gradient-track"></div><div class="pr-gradient-labels"><span style="color:#e53e3e">Worst</span><span style="color:#38a169">Best</span></div></div>
+    </div>
+  </div>`;
+}
+
+function _getEVList() {
+  const inp = document.getElementById('f_extra_vitals_list');
+  if (!inp) return [];
+  try { return JSON.parse(inp.value || '[]'); } catch(e) { return []; }
+}
+function _saveEVList(list) {
+  const inp = document.getElementById('f_extra_vitals_list');
+  if (inp) inp.value = JSON.stringify(list);
+}
+function _reRenderEV() {
+  const c = document.getElementById('extra_vitals_container');
+  if (c) c.innerHTML = _getEVList().map((ev, i) => buildExtraVitalsHTML(ev, i)).join('');
+}
+
+function addExtraVitals() {
+  const list = _getEVList();
+  list.push({ hr:'', bp:'', rr:'', spo2:'', bgl:'', temp:'', lung_sounds:'', ekg:'', ekg_12lead:'', pain:'', pupils:'', interventions:'', pt_response:'' });
+  _saveEVList(list);
+  _reRenderEV();
+}
+
+function removeExtraVitals(idx) {
+  const list = _getEVList();
+  list.splice(idx, 1);
+  _saveEVList(list);
+  _reRenderEV();
+}
+
+function updateExtraVital(idx, field, value) {
+  const list = _getEVList();
+  if (list[idx]) { list[idx][field] = value; _saveEVList(list); }
+}
+
+function selectExtraVitalPR(idx, value, btn) {
+  const list = _getEVList();
+  if (!list[idx]) return;
+  list[idx].pt_response = list[idx].pt_response === value ? '' : value;
+  _saveEVList(list);
+  const chips = document.getElementById(`ev_pr_${idx}`);
+  if (chips) chips.querySelectorAll('.checklist-chip').forEach(b => b.classList.remove('chip-active'));
+  if (list[idx].pt_response) btn.classList.add('chip-active');
+}
+
+function getHiddenSteps() {
+  const disp = (state.data.scene || {}).disposition;
+  let alertData = {};
+  try {
+    const el = document.getElementById('f_alerts');
+    const raw = el ? el.value : (state.data.primary_assessment || {}).alerts;
+    alertData = JSON.parse(raw || '{}');
+  } catch(e) {}
+  const hidden = [
+    ...(alertData.trauma?.active      ? [] : ['trauma_criteria']),
+    ...(alertData.elder_gray?.active  ? [] : ['elder_gray_criteria']),
+  ];
+  if (disp === 'Refused assessment (RA)')         return [...hidden, 'primary_assessment', 'secondary_assessment', 'hospital'];
+  if (disp === 'Patient refused transport (AMA)') return [...hidden, 'secondary_assessment', 'hospital'];
+  if (disp === 'Transferred to Transcare')        return [...hidden, 'secondary_assessment', 'hospital'];
+  if (disp === 'DOA / pronounced on scene')       return [...hidden, 'secondary_assessment', 'hospital'];
+  if (disp === 'Cancelled en route')              return [...hidden, 'primary_assessment', 'secondary_assessment', 'hospital'];
+  if (disp === 'Cancelled by TPD')               return [...hidden, 'primary_assessment', 'secondary_assessment', 'hospital'];
+  return hidden;
+}
+
+function isRADisposition() {
+  return (state.data.scene || {}).disposition === 'Refused assessment (RA)';
+}
+
+function syncDisposition(value) {
+  if (!state.data.scene) state.data.scene = {};
+  state.data.scene.disposition = value;
+  renderProgressBar();
+  const isCancelled = value === 'Cancelled en route' || value === 'Cancelled by TPD';
+  document.querySelectorAll('.cancelled-hide').forEach(el => {
+    el.style.display = isCancelled ? 'none' : 'block';
+  });
+  // Update the Next/Review button label on the current step
+  const nextBtn = document.querySelector('.btn-row .btn-primary');
+  if (nextBtn) {
+    const h = getHiddenSteps();
+    const isLast = STEPS.slice(state.current + 1).every(s => h.includes(s.id));
+    nextBtn.textContent = isLast ? 'Review Report →' : 'Next →';
+  }
+}
+
+function renderProgressBar() {
+  const bar = document.getElementById('progressBar');
+  const hidden = getHiddenSteps();
+  bar.innerHTML = STEPS.map((s, i) => {
+    if (hidden.includes(s.id)) return '';
+    let cls = '';
+    if (state.view === 'review' || state.view === 'narrative') cls = 'done';
+    else if (i < state.current) cls = state.skipped[s.id] ? 'skipped' : 'done';
+    else if (i === state.current) cls = 'active';
+    const mark = cls === 'done' ? '✓' : (i + 1);
+    return `<div class="step-dot ${cls}" onclick="goToStep(${i})" style="cursor:pointer"><div class="dot-circle">${mark}</div><div class="dot-label">${s.label}</div></div>`;
+  }).join('');
+}
+
+function renderStep(idx) {
+  const step = STEPS[idx];
+  const saved = state.data[step.id] || {};
+  let fieldsHtml = '';
+  let vitalGroup = [];
+  let hasToggle = false;
+  let vitalsToggleId = null;
+  let currentBarId = null;
+
+  const flushVitals = () => {
+    if (!vitalGroup.length) return;
+    const wrapId   = vitalsToggleId ? `showwhen_${vitalsToggleId}_down` : null;
+    const wrapShow = vitalsToggleId ? (saved[vitalsToggleId] === 'down') : true;
+    if (wrapId) fieldsHtml += `<div class="${wrapId}" style="display:${wrapShow ? 'block' : 'none'}">`;
+    fieldsHtml += `<div class="field"><label>Vital Signs <span class="opt">optional</span></label><div class="vitals-grid">`;
+    for (const f of vitalGroup) {
+      if (f.type === 'vital_select') {
+        const sv = saved[f.id] || '';
+        const doneVal = f.checkbox ? (saved[f.id+'_done'] || '') : '';
+        const opts = `<option value="">—</option>` + f.options.map(o => `<option value="${o}"${sv===o?' selected':''}>${o}</option>`).join('');
+        const doneHTML = f.checkbox ? `
+          <input type="hidden" id="f_${f.id}_done" value="${doneVal}">
+          <div class="vital-done-row" onclick="toggleVitalDone('${f.id}')">
+            <div class="vital-done-box${doneVal==='yes'?' on':''}" id="vcb_${f.id}">${doneVal==='yes'?'✓':''}</div>
+            <span class="vital-done-text">performed</span>
+          </div>` : '';
+        const alsHide = f.als_only && getServiceLevel() === 'bls' ? ' style="display:none"' : '';
+        fieldsHtml += `<div class="vital-tile vital-tile-wide"${alsHide}><label>${f.label}</label>
+          <select id="f_${f.id}" class="vital-select">${opts}</select>${doneHTML}
+        </div>`;
+      } else {
+        const doneVal = f.checkbox ? (saved[f.id+'_done'] || '') : '';
+        const doneHTML = f.checkbox ? `
+          <input type="hidden" id="f_${f.id}_done" value="${doneVal}">
+          <div class="vital-done-row" onclick="toggleVitalDone('${f.id}')">
+            <div class="vital-done-box${doneVal==='yes'?' on':''}" id="vcb_${f.id}">${doneVal==='yes'?'✓':''}</div>
+            <span class="vital-done-text">performed</span>
+          </div>` : '';
+        fieldsHtml += `<div class="vital-tile"><label>${f.label}</label>
+          <input type="text" id="f_${f.id}" placeholder="—" value="${saved[f.id] || ''}">
+          <div class="unit">${f.unit}</div>${doneHTML}</div>`;
+      }
+    }
+    fieldsHtml += `</div></div>`;
+    if (wrapId) fieldsHtml += `</div>`;
+    vitalGroup = [];
+    vitalsToggleId = null;
+  };
+
+  for (const f of step.fields) {
+    if (f.type === 'vital' || f.type === 'vital_select') { vitalGroup.push(f); continue; }
+    flushVitals();
+    if (f.type === 'header') continue;
+    if (f.type === 'section') { fieldsHtml += `<div class="section-divider">${f.label}</div>`; continue; }
+    if (currentBarId && (!f.showWhen || f.showWhen.field !== currentBarId)) {
+      fieldsHtml += '</div>'; currentBarId = null;
+    }
+    if (f.type === 'als_bls') {
+      const sv = saved[f.id] || 'als';
+      const isBls = sv === 'bls';
+      fieldsHtml += `
+        <div class="als-bls-wrap">
+          <div class="als-bls-label">Service Level</div>
+          <div class="als-bls-banner${isBls ? ' bls-mode' : ''}" id="als_bls_banner">
+            <button type="button" class="als-bls-btn${!isBls ? ' als-active' : ''}" onclick="setServiceLevel('als')">ALS</button>
+            <button type="button" class="als-bls-btn${isBls ? ' bls-active' : ''}" onclick="setServiceLevel('bls')">BLS</button>
+          </div>
+          <input type="hidden" id="f_${f.id}" value="${sv}">
+        </div>`;
+      continue;
+    }
+    if (f.type === 'step_toggle') {
+      const isYes = (saved[f.id] || 'yes') === 'yes';
+      fieldsHtml += `
+        <div class="step-toggle-bar">
+          <span class="step-toggle-title">${f.label}</span>
+          <div class="step-toggle-btns">
+            <button type="button" class="toggle-btn toggle-check${isYes ? ' active' : ''}" onclick="toggleStepPerformed('yes')">✓</button>
+            <button type="button" class="toggle-btn toggle-cross${!isYes ? ' active' : ''}" onclick="toggleStepPerformed('no')">✗</button>
+          </div>
+        </div>
+        <input type="hidden" id="f_${f.id}" value="${saved[f.id] || 'yes'}">
+        <div id="step_fields_toggle" style="display:${isYes ? 'block' : 'none'}">`;
+      hasToggle = true;
+      continue;
+    }
+
+    let wrapOpen = f.showWhen
+      ? `<div class="showwhen_${f.showWhen.field}_${f.showWhen.value}" style="display:${(saved[f.showWhen.field] === f.showWhen.value) ? 'block' : 'none'}">`
+      : '';
+    let wrapClose = f.showWhen ? `</div>` : '';
+    if (f.cancelledHidden) {
+      const isCancelled = (saved['disposition'] || '') === 'Cancelled en route' || (saved['disposition'] || '') === 'Cancelled by TPD';
+      wrapOpen  = `<div class="cancelled-hide" style="display:${isCancelled ? 'none' : 'block'}">` + wrapOpen;
+      wrapClose = wrapClose + `</div>`;
+    }
+
+    if (f.type === 'units') {
+      const UNIT_TYPES = ['Rescue','Engine','Truck','Chief'];
+      let savedUnits = [];
+      try { savedUnits = JSON.parse(saved[f.id] || '[]'); } catch(e) { savedUnits = saved[f.id] ? [saved[f.id]] : []; }
+      if (!savedUnits.length) savedUnits = [''];
+      const buildUnitRow = (val, i, isLast) => {
+        const parts = (val || '').split(' ');
+        const uType = UNIT_TYPES.includes(parts[0]) ? parts[0] : 'Rescue';
+        const uNum  = UNIT_TYPES.includes(parts[0]) ? parts.slice(1).join(' ') : (val || '');
+        const opts  = UNIT_TYPES.map(t => `<option value="${t}" ${uType===t?'selected':''}>${t}</option>`).join('');
+        return `<div class="unit-row" id="unit_row_${i}">
+          <select class="unit-type-select" onchange="syncUnits()">${opts}</select>
+          <input type="text" class="unit-num-input" placeholder="e.g. 24" value="${uNum}" oninput="syncUnits()">
+          ${i > 0 ? `<button type="button" class="unit-remove-btn" onclick="removeUnit(${i})">×</button>` : ''}
+          ${isLast ? `<button type="button" class="unit-add-btn" id="unit_add_btn" onclick="addUnit()">+</button>` : ''}
+        </div>`;
+      };
+      const rowsHtml = savedUnits.map((val, i) => buildUnitRow(val, i, i === savedUnits.length - 1)).join('');
+      fieldsHtml += `<div class="field">
+        <label>${f.label}${f.required ? ' <span style="color:var(--red)">*</span>' : ''}</label>
+        <div id="units_container">${rowsHtml}</div>
+        <input type="hidden" id="f_${f.id}" value="${(saved[f.id] || '').replace(/"/g,'&quot;')}">
+      </div>`;
+    } else if (f.type === 'checklist') {
+      const savedVal = saved[f.id] || '';
+      const savedItems = savedVal ? savedVal.split(', ') : [];
+      const otherItems = savedItems.filter(i => !f.options.includes(i));
+      const otherText = otherItems.join(', ');
+      const chipsHtml = f.options.map(o =>
+        `<button type="button" class="checklist-chip${savedItems.includes(o) ? ' chip-active' : ''}" onclick="toggleChip('${f.id}', this)">${o}</button>`
+      ).join('');
+      fieldsHtml += `<div class="field">
+        <label>${f.label}<span class="opt">optional</span></label>
+        <div class="checklist-chips" id="chips_${f.id}">${chipsHtml}</div>
+        <input type="text" class="checklist-other" id="other_${f.id}" placeholder="Other..." value="${otherText}" oninput="syncChecklist('${f.id}')">
+        <input type="hidden" id="f_${f.id}" value="${savedVal}">
+      </div>`;
+    } else if (f.type === 'yesno') {
+      const sv = saved[f.id] || '';
+      fieldsHtml += `<div class="field">
+        <label>${f.label}${f.required ? ' <span style="color:var(--red)">*</span>' : ''}</label>
+        <div class="yesno-group">
+          <button type="button" class="yesno-btn ${sv === 'yes' ? 'yn-active' : ''}" onclick="setYesNo('${f.id}', 'yes', this)">Yes</button>
+          <button type="button" class="yesno-btn ${sv === 'no' ? 'yn-active' : ''}" onclick="setYesNo('${f.id}', 'no', this)">No</button>
+        </div>
+        <input type="hidden" id="f_${f.id}" value="${sv}">
+      </div>`;
+    } else if (f.type === 'select') {
+      const sv = saved[f.id] || f.default || '';
+      const showAutoDot = f.default && sv === f.default;
+      const autoDotHtml = showAutoDot ? `<span class="auto-dot" id="autodot_${f.id}"></span>` : '';
+      fieldsHtml += `${wrapOpen}<div class="field">
+        <label>${autoDotHtml}${f.label}${f.opt ? '<span class="opt">optional</span>' : ''}</label>
+        <select id="f_${f.id}"${showAutoDot ? ` onfocus="clearAutoDot('${f.id}')"` : ''}${f.id === 'assessment_type' ? ` onchange="syncAssessmentLabel(this.value)"` : ''}${f.id === 'disposition' ? ` onchange="syncDisposition(this.value)"` : ''}>
+          <option value="">— select —</option>
+          ${f.options.map(o => `<option value="${o}" ${sv === o ? 'selected' : ''}>${o}</option>`).join('')}
+        </select>
+      </div>${wrapClose}`;
+    } else if (f.type === 'textarea') {
+      const focusAttrs = f.focusPlaceholder
+        ? ` onfocus="focusPlaceholder(this,'${f.focusPlaceholder}')" onblur="blurPlaceholder(this)"`
+        : '';
+      fieldsHtml += `${wrapOpen}<div class="field">
+        <label>${f.label}${f.opt ? '<span class="opt">optional</span>' : ''}${f.required ? ' <span style="color:var(--red)">*</span>' : ''}</label>
+        <textarea id="f_${f.id}" placeholder="${f.placeholder || ''}"${focusAttrs}>${saved[f.id] || ''}</textarea>
+      </div>${wrapClose}`;
+    } else if (f.type === 'pt_response') {
+      const PR_OPTIONS = ['Deteriorated','Did Not Tolerate','No Change','Tolerated Well','Partially Improved','Resolved'];
+      const savedVal = saved[f.id] || '';
+      const chipsHtml = PR_OPTIONS.map(o =>
+        `<button type="button" class="checklist-chip pr-chip${savedVal === o ? ' chip-active' : ''}" onclick="selectPtResponse('${f.id}', '${o}', this)">${o}</button>`
+      ).join('');
+      fieldsHtml += `${wrapOpen}<div class="field">
+        <label>${f.label}<span class="opt">optional</span></label>
+        <div class="checklist-chips pr-chips" id="chips_${f.id}">${chipsHtml}</div>
+        <div class="pr-gradient-bar" aria-hidden="true">
+          <div class="pr-gradient-track"></div>
+          <div class="pr-gradient-labels"><span style="color:#e53e3e">Worst</span><span style="color:#38a169">Best</span></div>
+        </div>
+        <input type="hidden" id="f_${f.id}" value="${savedVal}">
+      </div>${wrapClose}`;
+    } else if (f.type === 'extra_vitals') {
+      const evList = (() => { try { return JSON.parse(saved[f.id] || '[]'); } catch(e) { return []; } })();
+      const setsHtml = evList.map((ev, idx) => buildExtraVitalsHTML(ev, idx)).join('');
+      const evShow = saved['vitals_ok'] === 'down';
+      fieldsHtml += `<div class="showwhen_vitals_ok_down" style="display:${evShow ? 'block' : 'none'}">
+        <div id="extra_vitals_container">${setsHtml}</div>
+        <button type="button" class="extra-vitals-add-btn" onclick="addExtraVitals()">+ Add Vitals Set</button>
+        </div>
+        <input type="hidden" id="f_extra_vitals_list" value="${saved[f.id] ? saved[f.id].replace(/"/g,'&quot;') : '[]'}">`;
+    } else if (f.type === 'hidden_json') {
+      // input rendered by sibling field; collectStep picks it up via f_${id} in DOM
+    } else if (f.type === 'elder_gray_panel') {
+      const egSaved = (() => { try { return JSON.parse(saved[f.id] || '{}'); } catch(e) { return {}; } })();
+      const savedVal = (saved[f.id] || '{}').replace(/"/g, '&quot;');
+      fieldsHtml += `
+        <input type="hidden" id="f_${f.id}" value="${savedVal}">
+        <div id="eg_wrap">${buildElderGrayHTML(egSaved)}</div>`;
+    } else if (f.type === 'trauma_type') {
+      const tv = saved[f.id] || '';
+      const showAdult = tv === 'adult';
+      const showPed   = tv === 'pediatric';
+      fieldsHtml += `
+        <div class="field">
+          <label>Patient Type</label>
+          <div style="display:flex;gap:8px;margin-bottom:14px">
+            <button type="button" id="trauma_type_adult" class="stroke-scale-btn${showAdult?' stroke-scale-active':''}" onclick="selectTraumaType('adult')">Adult</button>
+            <button type="button" id="trauma_type_pediatric" class="stroke-scale-btn${showPed?' stroke-scale-active':''}" onclick="selectTraumaType('pediatric')">Pediatric</button>
+          </div>
+          <input type="hidden" id="f_trauma_type" value="${tv}">
+          <input type="hidden" id="f_ped_criteria" value="${(saved['ped_criteria']||'{}').replace(/"/g,'&quot;')}">
+          <input type="hidden" id="f_adult_criteria" value="${(saved['adult_criteria']||'{}').replace(/"/g,'&quot;')}">
+          <div id="trauma_criteria_adult" style="display:${showAdult?'block':'none'}">
+            <div id="adult_wrap">${buildAdultCriteriaHTML((() => { try { return JSON.parse(saved['adult_criteria']||'{}'); } catch(e) { return {}; } })())}</div>
+          </div>
+          <div id="trauma_criteria_pediatric" style="display:${showPed?'block':'none'}">
+            <div id="ped_wrap">${buildPedCriteriaHTML((() => { try { return JSON.parse(saved['ped_criteria']||'{}'); } catch(e) { return {}; } })())}</div>
+          </div>
+        </div>`;
+    } else if (f.type === 'alert_panel') {
+      if (getServiceLevel() === 'bls') { fieldsHtml += `<div style="display:none">`; }
+      let ad = {};
+      try { ad = JSON.parse(saved[f.id] || '{}'); } catch(e) {}
+      const ALERTS = [
+        { key:'stroke',     label:'Possible Stroke', icon:'🧠' },
+        { key:'trauma',     label:'Trauma Alert',    icon:'🚨' },
+        { key:'elder_gray', label:'Elder Gray',      icon:'🧓' },
+        { key:'sepsis',     label:'Sepsis Alert',    icon:'🌡️' },
+        { key:'stemi',      label:'STEMI Alert',     icon:'❤️' },
+        { key:'cardiac',    label:'Cardiac Alert',   icon:'💓' },
+      ];
+      const patientAge = parsePatientAge();
+      const elderGrayEligible = patientAge === null || patientAge >= 65;
+      const boxes = ALERTS.map(a => {
+        const btn = `<button type="button" class="alert-box${ad[a.key]?.active ? ' alert-active' : ''}" id="alertbox_${a.key}" onclick="toggleAlertBox('${a.key}')">
+          <span class="alert-icon">${a.icon}</span>${a.label}</button>`;
+        if (a.key === 'elder_gray') {
+          return `<span id="elder_gray_alert_wrap" style="display:${elderGrayEligible ? '' : 'none'}">${btn}</span>`;
+        }
+        return btn;
+      }).join('');
+
+      // Stroke panel
+      const sd = ad.stroke || {};
+      const strokeScales = sd.scales || ['fast-ed'];
+      const showFasted = strokeScales.includes('fast-ed');
+      const showCinc   = strokeScales.includes('cincinnati');
+      const fastedFields = [
+        { key:'fe_face',   label:'Face',           normal:'Normal',  opts:['Normal','Left facial droop','Right facial droop','Bilateral facial droop'] },
+        { key:'fe_arm',    label:'Arm',            normal:'No drift',opts:['No drift','Left arm weakness/drift','Right arm weakness/drift','Bilateral arm weakness'] },
+        { key:'fe_speech', label:'Speech',         normal:'Normal',  opts:['Normal','Slurred speech','Aphasia','Absent speech'] },
+        { key:'fe_time',   label:'Last Known Well', normal:'Unknown', opts:['Unknown','< 3 hours ago','3–4.5 hours ago','> 4.5 hours ago'] },
+        { key:'fe_eyes',   label:'Eyes Deviation', normal:'None',    opts:['None','Partial gaze deviation','Forced gaze deviation'] },
+        { key:'fe_denial', label:'Denial/Neglect', normal:'Absent',  opts:['Absent','Partial neglect','Complete neglect'] },
+      ];
+      const cincinnatiFields = [
+        { key:'ci_face',   label:'Facial Droop',   normal:'Normal',  opts:['Normal','Left facial droop','Right facial droop','Bilateral facial droop'] },
+        { key:'ci_arm',    label:'Arm Drift',      normal:'No drift',opts:['No drift','Left arm drift','Right arm drift','Bilateral arm drift'] },
+        { key:'ci_speech', label:'Speech',         normal:'Normal',  opts:['Normal','Slurred speech','Aphasia','Absent speech'] },
+      ];
+      const buildStrokeGrid = (fields) => fields.map(f => `<div class="befast-field">
+        <label>${f.label}</label>
+        <select onchange="updateAlertField('stroke','${f.key}',this.value)">
+          ${f.opts.map(o => `<option value="${o}"${(sd[f.key]||f.normal)===o?' selected':''}>${o}</option>`).join('')}
+        </select>
+      </div>`).join('');
+      const strokePanel = `<div id="alertpanel_stroke" class="alert-sub-panel" style="display:${sd.active?'block':'none'}">
+        <label>Stroke Scale</label>
+        <div style="display:flex;gap:8px;margin-bottom:10px">
+          <button type="button" class="stroke-scale-btn${showFasted?' stroke-scale-active':''}" onclick="toggleStrokeScale('fast-ed')">FAST-ED</button>
+          <button type="button" class="stroke-scale-btn${showCinc?' stroke-scale-active':''}" onclick="toggleStrokeScale('cincinnati')">Cincinnati</button>
+        </div>
+        <div id="stroke_grid_fasted" style="display:${showFasted?'block':'none'}">
+          <div class="stroke-scale-label" style="display:${showFasted&&showCinc?'block':'none'}">FAST-ED</div>
+          <div class="befast-grid">${buildStrokeGrid(fastedFields)}</div>
+        </div>
+        <div id="stroke_grid_cincinnati" style="display:${showCinc?'block':'none'}">
+          <div class="stroke-scale-label" style="display:${showFasted&&showCinc?'block':'none'}">Cincinnati</div>
+          <div class="befast-grid">${buildStrokeGrid(cincinnatiFields)}</div>
+        </div>
+        <div style="margin-top:12px">
+          <label style="font-size:0.82rem;font-weight:600;color:var(--gray-600);display:block;margin-bottom:6px">Stroke alert called?</label>
+          <div style="display:flex;gap:8px">
+            <button type="button" id="stroke_yn_yes" class="stroke-scale-btn${sd.alert_called==='yes'?' stroke-scale-active':''}" onclick="setStrokeAlertCalled('yes')">Yes</button>
+            <button type="button" id="stroke_yn_no"  class="stroke-scale-btn${sd.alert_called==='no' ?' stroke-scale-active':''}" onclick="setStrokeAlertCalled('no')">No</button>
+          </div>
+        </div>
+      </div>`;
+
+      // Trauma panel
+      const traumaPanel = `<div id="alertpanel_trauma" class="alert-sub-panel" style="display:${ad.trauma?.active?'block':'none'}">
+        <p style="margin:0;font-size:0.82rem;color:var(--gray-500)">Criteria documented in the <strong>Trauma Ax</strong> tab.</p>
+      </div>`;
+
+      // Elder Gray panel
+      const elderGrayPanel = `<div id="alertpanel_elder_gray" class="alert-sub-panel" style="display:${ad.elder_gray?.active?'block':'none'}">
+        <p style="margin:0;font-size:0.82rem;color:var(--gray-500)">Criteria documented in the <strong>Elder Gray</strong> tab.</p>
+      </div>`;
+
+      // Sepsis panel
+      const sepsisPanel = `<div id="alertpanel_sepsis" class="alert-sub-panel" style="display:${ad.sepsis?.active?'block':'none'}">
+        <label>Sepsis Alert — Vital Criteria</label>
+        <div class="sepsis-vitals">
+          <div class="sepsis-vital"><label>ETCO₂</label><div class="sepsis-hint">≤ 25 mmHg</div><input type="text" placeholder="mmHg" value="${ad.sepsis?.etco2||''}" oninput="updateAlertField('sepsis','etco2',this.value)"></div>
+          <div class="sepsis-vital"><label>Temp</label><div class="sepsis-hint">&gt; 38°C (100.4°F)<br>or &lt; 36°C (96.8°F)</div><input type="text" placeholder="°F" value="${ad.sepsis?.temp||''}" oninput="updateAlertField('sepsis','temp',this.value)"></div>
+          <div class="sepsis-vital"><label>Heart Rate</label><div class="sepsis-hint">&gt; 90 bpm</div><input type="text" placeholder="bpm" value="${ad.sepsis?.hr||''}" oninput="updateAlertField('sepsis','hr',this.value)"></div>
+          <div class="sepsis-vital"><label>Resp Rate</label><div class="sepsis-hint">&gt; 20 breaths/min</div><input type="text" placeholder="brpm" value="${ad.sepsis?.rr||''}" oninput="updateAlertField('sepsis','rr',this.value)"></div>
+        </div>
+      </div>`;
+
+      // STEMI panel — standard 4×3 lead grid
+      const stemiLeads = ad.stemi?.leads || [];
+      const STEMI_ROWS = [['I','aVR','V1','V4'],['II','aVL','V2','V5'],['III','aVF','V3','V6']];
+      const flatWave  = `<svg width="36" height="14" viewBox="0 0 36 14" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="0,10 7,10 8,5 9,13 10,1 11,10 36,10"/></svg>`;
+      const elWave    = `<svg width="36" height="14" viewBox="0 0 36 14" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="0,10 7,10 8,5 9,13 10,1 11,6 36,6"/></svg>`;
+      const depWave   = `<svg width="36" height="14" viewBox="0 0 36 14" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="0,10 7,10 8,5 9,13 10,1 11,13 36,13"/></svg>`;
+      const stemiDepressed = ad.stemi?.depressed || [];
+      const stemiGrid = STEMI_ROWS.map(row =>
+        row.map(lead => {
+          const elevated  = stemiLeads.includes(lead);
+          const depressed = stemiDepressed.includes(lead);
+          const sid = lead.replace('/','_');
+          const cls = elevated ? ' lead-active' : depressed ? ' lead-depressed' : '';
+          const wave = elevated ? elWave : depressed ? depWave : flatWave;
+          return `<button type="button" class="stemi-lead${cls}" id="stemi_lead_${sid}" onclick="toggleStemiLead('${lead}')">${wave}${lead}</button>`;
+        }).join('')
+      ).join('');
+      const stemiPanel = `<div id="alertpanel_stemi" class="alert-sub-panel" style="display:${ad.stemi?.active?'block':'none'}">
+        <label>STEMI Alert — 1st click: elevation (red) · 2nd click: depression (blue) · 3rd click: clear</label>
+        <div class="stemi-grid">${stemiGrid}</div>
+      </div>`;
+
+      // Cardiac panel
+      const cardiacPanel = `<div id="alertpanel_cardiac" class="alert-sub-panel" style="display:${ad.cardiac?.active?'block':'none'}">
+        <label>Cardiac Findings</label>
+        <textarea placeholder="Document cardiac findings noted..." oninput="updateAlertField('cardiac','findings',this.value)">${ad.cardiac?.findings||''}</textarea>
+      </div>`;
+
+      const safeVal = (saved[f.id] || '').replace(/"/g, '&quot;');
+      fieldsHtml += `<div class="field">
+        <label>${f.label}${f.opt ? '<span class="opt">optional</span>' : ''}</label>
+        <div class="alert-boxes">${boxes}</div>
+        ${strokePanel}${traumaPanel}${elderGrayPanel}${sepsisPanel}${stemiPanel}${cardiacPanel}
+        <input type="hidden" id="f_${f.id}" value="${safeVal}">
+      </div>`;
+      if (getServiceLevel() === 'bls') { fieldsHtml += `</div>`; }
+    } else if (f.type === 'chipselect') {
+      const savedVal = saved[f.id] || f.default || '';
+      const chipsHtml = f.options.map(o =>
+        `<button type="button" class="checklist-chip${savedVal === o ? ' chip-active' : ''}" onclick="selectChip('${f.id}', '${o}', this)">${o}</button>`
+      ).join('');
+      fieldsHtml += `${wrapOpen}<div class="field">
+        <label>${f.label}${f.opt ? '<span class="opt">optional</span>' : ''}${f.required ? ' <span style="color:var(--red)">*</span>' : ''}</label>
+        <div class="checklist-chips" id="chips_${f.id}">${chipsHtml}</div>
+        <input type="hidden" id="f_${f.id}" value="${savedVal}">
+      </div>${wrapClose}`;
+    } else if (f.type === 'quickselect') {
+      const savedVal = saved[f.id] || '';
+      const isPreset = f.options.includes(savedVal);
+      const otherVal = isPreset ? '' : savedVal;
+      const chipsHtml = f.options.map(o =>
+        `<button type="button" class="checklist-chip${savedVal === o ? ' chip-active' : ''}" onclick="selectQuickOption('${f.id}', '${o}', this)">${o}</button>`
+      ).join('');
+      fieldsHtml += `${wrapOpen}<div class="field">
+        <label>${f.label}${f.opt ? '<span class="opt">optional</span>' : ''}${f.required ? ' <span style="color:var(--red)">*</span>' : ''}</label>
+        <div class="checklist-chips" id="chips_${f.id}">${chipsHtml}</div>
+        <input type="text" class="checklist-other" id="other_${f.id}" placeholder="${f.placeholder || 'Other...'}" value="${otherVal}" oninput="syncQuickOther('${f.id}')">
+        <input type="hidden" id="f_${f.id}" value="${savedVal}">
+      </div>${wrapClose}`;
+    } else if (f.type === 'thumbs') {
+      const sv = saved[f.id] || '';
+      const isBlsAuto = getServiceLevel() === 'bls' && BLS_AUTO_FIELDS.includes(f.id) && sv === 'up';
+      const autoDotHtml = isBlsAuto ? `<span class="auto-dot" id="autodot_${f.id}"></span>` : '';
+      let thumbLabel = f.label;
+      if (f.id === 'assessment_ok') {
+        const aTypeDef = step.fields.find(sf => sf.id === 'assessment_type')?.default || '';
+        const aType = saved['assessment_type'] || aTypeDef;
+        if (aType === 'Focused assessment') thumbLabel = 'Focused Assessment';
+        else if (aType === 'Head to toe')   thumbLabel = 'Head to Toe';
+      }
+      const tipUp   = f.controlsVitals       ? 'Vitals within normal limits'
+                    : f.id === 'assessment_ok' ? 'Assessment unremarkable — no significant findings'
+                    : f.id === 'sample_ok'     ? 'SAMPLE taken — no pertinent findings'
+                    : f.id === 'opqrst_ok'     ? 'OPQRST taken — no pertinent findings'
+                    : 'ABCs assessed — no immediate life threats';
+      const tipDown = f.controlsVitals       ? 'Abnormal vitals — enter values below'
+                    : f.id === 'assessment_ok' ? 'Significant findings noted — describe below'
+                    : f.id === 'sample_ok'     ? 'Pertinent findings noted — describe below'
+                    : f.id === 'opqrst_ok'     ? 'Pertinent findings noted — describe below'
+                    : 'Life threats identified — describe below';
+      const barClass = f.bar === 'red' ? 'bar-red' : f.bar === 'orange' ? 'bar-orange' : f.bar === 'blue' ? 'bar-blue' : '';
+      fieldsHtml += `${wrapOpen}${barClass ? `<div class="${barClass}${sv==='down'?' bar-open':''}" id="barbox_${f.id}">` : ''}<div class="field">
+        <label${f.id === 'assessment_ok' ? ` id="assessment_ok_label"` : ''}>${autoDotHtml}${thumbLabel}</label>
+        <div style="display:flex;align-items:center">
+          <div class="thumbs-group">
+            <button type="button" class="thumbs-btn thumbs-up${sv === 'up' ? ' tb-active' : ''}"
+              onclick="setThumbs('${f.id}', 'up', this)" title="${tipUp}">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/>
+                <path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+            </button>
+            <button type="button" class="thumbs-btn thumbs-down${sv === 'down' ? ' tb-active' : ''}"
+              onclick="setThumbs('${f.id}', 'down', this)" title="${tipDown}">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3H10z"/>
+                <path d="M17 2h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <input type="hidden" id="f_${f.id}" value="${sv}">
+      </div>${barClass ? '</div>' : ''}${wrapClose}${barClass ? `<div class="bar-drop bar-drop-${f.bar}" id="bardrop_${f.id}" style="display:${sv==='down'?'block':'none'}">` : ''}`;
+      if (barClass) currentBarId = f.id;
+      if (f.controlsVitals) vitalsToggleId = f.id;
+    } else if (f.type === 'hospitalselect') {
+      const savedVal = saved[f.id] || '';
+      fieldsHtml += `${wrapOpen}<div class="field">
+        <label>${f.label}${f.required ? ' <span style="color:var(--red)">*</span>' : ''}</label>
+        <div class="hosp-wrap" id="hospwrap_${f.id}">
+          <input type="text" id="f_${f.id}" placeholder="Type to search hospitals..." value="${savedVal}"
+            autocomplete="off"
+            oninput="hospFilter('${f.id}')"
+            onkeydown="hospKeydown(event, '${f.id}')"
+            onfocus="hospFilter('${f.id}')"
+            onblur="hospBlur('${f.id}')">
+          <div class="hosp-dropdown" id="hospdrop_${f.id}"></div>
+        </div>
+      </div>${wrapClose}`;
+    } else if (f.type === 'foundselect') {
+      const savedVal = saved[f.id] || '';
+      fieldsHtml += `${wrapOpen}<div class="field">
+        <label>${f.label}${f.required ? ' <span style="color:var(--red)">*</span>' : ''}</label>
+        <div class="hosp-wrap" id="foundwrap_${f.id}">
+          <input type="text" id="f_${f.id}" placeholder="${f.placeholder || ''}" value="${savedVal}"
+            autocomplete="off"
+            oninput="foundFilter('${f.id}')"
+            onkeydown="foundKeydown(event, '${f.id}')"
+            onfocus="foundFilter('${f.id}')"
+            onblur="foundBlur('${f.id}')">
+          <div class="hosp-dropdown" id="founddrop_${f.id}"></div>
+        </div>
+      </div>${wrapClose}`;
+    } else {
+      const svt = saved[f.id] || f.default || '';
+      const showAutoDotT = f.default && svt === f.default;
+      const autoDotHtmlT = showAutoDotT ? `<span class="auto-dot" id="autodot_${f.id}"></span>` : '';
+      fieldsHtml += `${wrapOpen}<div class="field">
+        <label>${autoDotHtmlT}${f.label}${f.opt ? '<span class="opt">optional</span>' : ''}${f.required ? ' <span style="color:var(--red)">*</span>' : ''}</label>
+        <input type="text" id="f_${f.id}" placeholder="${f.placeholder || ''}" value="${svt}"${showAutoDotT ? ` onfocus="clearAutoDot('${f.id}')"` : ''}>
+      </div>${wrapClose}`;
+    }
+  }
+  flushVitals();
+  if (currentBarId) { fieldsHtml += '</div>'; currentBarId = null; }
+  if (hasToggle) fieldsHtml += '</div>';
+
+  document.getElementById('stepContainer').innerHTML = `
+    <div class="card">
+      <div class="card-header">
+        <div class="step-icon">${step.icon}</div>
+        <div><h2>${step.title}</h2><p>${step.desc}</p></div>
+      </div>
+      <div class="field-group">${fieldsHtml}</div>
+      <div class="btn-row">
+        ${idx > 0 ? `<button class="btn btn-secondary" onclick="goBack()">← Back</button>` : ''}
+        <button class="btn btn-primary" onclick="goNext(${idx})">
+          ${(function(){ const h = getHiddenSteps(); return STEPS.slice(idx+1).every(s => h.includes(s.id)); })() ? 'Review Report →' : 'Next →'}
+        </button>
+<button class="btn-skip" onclick="skipStep(${idx})">Skip ↷</button>
+      </div>
+    </div>`;
+  // Show/hide Elder Gray alert button based on patient age
+  updateElderGrayAlertVisibility();
+}
+
+function focusPlaceholder(el, text) {
+  el._origPlaceholder = el.placeholder;
+  el.placeholder = text;
+}
+function blurPlaceholder(el) {
+  el.placeholder = el._origPlaceholder || '';
+}
+
+function selectChip(fieldId, value, btn) {
+  const hidden = document.getElementById(`f_${fieldId}`);
+  document.querySelectorAll(`#chips_${fieldId} .checklist-chip`).forEach(c => c.classList.remove('chip-active'));
+  if (hidden.value === value) { hidden.value = ''; } else { btn.classList.add('chip-active'); hidden.value = value; }
+}
+
+// ── Alert panel helpers ───────────────────────────────────────
+function _getAlerts() {
+  const el = document.getElementById('f_alerts');
+  if (!el) return {};
+  try { return JSON.parse(el.value || '{}'); } catch(e) { return {}; }
+}
+function _saveAlerts(data) {
+  const el = document.getElementById('f_alerts');
+  if (el) el.value = JSON.stringify(data);
+}
+function toggleAlertBox(key) {
+  const data = _getAlerts();
+  if (!data[key]) data[key] = {};
+  data[key].active = !data[key].active;
+  document.getElementById(`alertbox_${key}`)?.classList.toggle('alert-active', data[key].active);
+  document.getElementById(`alertpanel_${key}`).style.display = data[key].active ? 'block' : 'none';
+  _saveAlerts(data);
+  renderProgressBar();
+}
+function parsePatientAge() {
+  const raw = (state.data.dispatch || {}).patient || '';
+  const match = raw.match(/\d+/);
+  return match ? parseInt(match[0], 10) : null;
+}
+function updateElderGrayAlertVisibility() {
+  const wrap = document.getElementById('elder_gray_alert_wrap');
+  if (!wrap) return;
+  const age = parsePatientAge();
+  const eligible = age === null || age >= 65;
+  wrap.style.display = eligible ? '' : 'none';
+  // If hidden and currently active, deactivate it
+  if (!eligible) {
+    const data = _getAlerts();
+    if (data.elder_gray?.active) {
+      data.elder_gray.active = false;
+      _saveAlerts(data);
+      document.getElementById('alertbox_elder_gray')?.classList.remove('alert-active');
+      const panel = document.getElementById('alertpanel_elder_gray');
+      if (panel) panel.style.display = 'none';
+      renderProgressBar();
+    }
+  }
+}
+function updateAlertField(key, field, value) {
+  const data = _getAlerts();
+  if (!data[key]) data[key] = { active: true };
+  data[key][field] = value;
+  _saveAlerts(data);
+}
+function _getPedCriteria() {
+  const el = document.getElementById('f_ped_criteria');
+  try { return JSON.parse(el ? el.value : '{}'); } catch(e) { return {}; }
+}
+function _savePedCriteria(data) {
+  const el = document.getElementById('f_ped_criteria');
+  if (el) el.value = JSON.stringify(data);
+}
+function _reRenderPed() {
+  const wrap = document.getElementById('ped_wrap');
+  if (wrap) wrap.innerHTML = buildPedCriteriaHTML(_getPedCriteria());
+}
+function togglePedItem(id, isChecked) {
+  const data = _getPedCriteria();
+  if (!data.checked) data.checked = [];
+  data.checked = isChecked ? [...new Set([...data.checked, id])] : data.checked.filter(x => x !== id);
+  _savePedCriteria(data);
+  _reRenderPed();
+}
+function setPcsScore(cat, val) {
+  const data = _getPedCriteria();
+  data[cat] = val ? Number(val) : '';
+  _savePedCriteria(data);
+  _reRenderPed();
+}
+function buildPedCriteriaHTML(pc) {
+  const checked = pc.checked || [];
+  const totalScore = PED_TRAUMA.scorecard.flatMap(c => c.items).filter(it => checked.includes(it.id)).reduce((sum, it) => sum + it.pts, 0);
+  const alertMet = totalScore >= 2;
+  const or2Count = PED_TRAUMA.or2.filter(it => checked.includes(it.id)).length;
+  const pcsRaw   = PED_TRAUMA.pcs.reduce((s, cat) => s + (Number(pc[cat.id]) || 0), 0);
+  const pcsTotal = pcsRaw > 0 ? pcsRaw : 3;
+
+  // Normal-column display items per component
+  const NORM = {
+    size:          ['Weight > 11 kg (24 lbs.)'],
+    airway:        ['Normal', 'Supplemental O2'],
+    consciousness: ['Awake, alert and age-appropriate orientation'],
+    circulation:   ['Good peripheral pulses', 'SBP is ≥ 90 mm Hg'],
+    fracture:      ['None seen nor suspected'],
+    cutaneous:     ['No visible injury', 'Contusion, abrasion, minor laceration'],
+  };
+  const normCell = (id) => NORM[id].map(t => `<div class="ped-norm-item"><div class="ped-norm-box"></div><span>${t}</span></div>`).join('');
+  const cbCell = (items, pts) => items.filter(it => it.pts === pts).map(it => {
+    const on = checked.includes(it.id);
+    return `<label class="ped-cb-label${on?' on':''}" onclick="togglePedItem('${it.id}',${!on})">
+      <input type="checkbox"${on?' checked':''}><div class="ped-cb-box">${on?'✓':''}</div><span>${it.text}</span>
+    </label>`;
+  }).join('');
+
+  let html = `<div class="ped-doc">
+    <div class="ped-doc-head">
+      <div class="ped-doc-title">PEDIATRIC TRAUMA ALERT</div>
+      <div class="ped-doc-sub">A score of 2 or greater for a PEDIATRIC patient according to trauma scorecard methodology below:</div>
+    </div>
+    <div class="ped-score-bar">
+      <span>Scorecard Total</span>
+      <span class="ped-score-pill${alertMet?' alert':''}">Score: ${totalScore}${alertMet?' — ALERT':''}</span>
+    </div>
+    <table class="ped-tbl">
+      <thead><tr>
+        <th>COMPONENT</th><th>Normal/No points</th><th>1 point</th><th>2 points</th>
+      </tr></thead>
+      <tbody>`;
+
+  for (const comp of PED_TRAUMA.scorecard) {
+    html += `<tr>
+      <td class="comp-col">${comp.label}</td>
+      <td>${normCell(comp.id)}</td>
+      <td>${cbCell(comp.items, 1)}</td>
+      <td>${cbCell(comp.items, 2)}</td>
+    </tr>`;
+  }
+
+  html += `</tbody></table>`;
+
+  // OR 2
+  html += `<div class="ped-or-sec">
+    <div class="ped-or-badge-col">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+        <div class="ped-or-badge">OR<br>2</div>
+        <div style="font-size:0.7rem;font-weight:700;color:#1a2a4a">${or2Count}/2</div>
+      </div>
+    </div>
+    <div class="ped-or-body">`;
+  for (const item of PED_TRAUMA.or2) {
+    const on = checked.includes(item.id);
+    html += `<label class="ped-cb-label${on?' on':''}" onclick="togglePedItem('${item.id}',${!on})">
+      <input type="checkbox"${on?' checked':''}><div class="ped-cb-box">${on?'✓':''}</div><span>${item.text}</span>
+    </label>`;
+  }
+  html += `</div></div>`;
+
+  // OR 3 — PCS
+  html += `<div class="ped-or-sec">
+    <div class="ped-or-badge-col"><div class="ped-or-badge">OR<br>3</div></div>
+    <div style="flex:1;overflow:hidden">
+      <div class="ped-pcs-title">PEDIATRIC COMA SCALE (&lt;2YRS)</div>`;
+  for (const cat of PED_TRAUMA.pcs) {
+    const selVal = pc[cat.id] ? String(pc[cat.id]) : '';
+    html += `<div class="ped-pcs-cat">
+      <div class="ped-pcs-cat-name">${cat.label}</div>
+      <div class="ped-pcs-opts">`;
+    for (const o of cat.opts) {
+      const on = selVal === String(o.v);
+      html += `<div class="ped-pcs-opt${on?' on':''}" onclick="setPcsScore('${cat.id}','${o.v}')">
+        <input type="radio"${on?' checked':''}><span>${o.t}</span><span class="ped-pcs-dots"></span><span class="ped-pcs-val">${o.v}</span>
+      </div>`;
+    }
+    html += `</div></div>`;
+  }
+  html += `<div class="ped-pcs-total-row">PCS Total: ${pcsTotal} / 15</div>`;
+  html += `</div></div></div>`;
+  return html;
+}
+function selectTraumaType(val) {
+  const inp = document.getElementById('f_trauma_type');
+  if (inp) inp.value = val;
+  document.getElementById('trauma_type_adult')?.classList.toggle('stroke-scale-active', val === 'adult');
+  document.getElementById('trauma_type_pediatric')?.classList.toggle('stroke-scale-active', val === 'pediatric');
+  document.getElementById('trauma_criteria_adult').style.display    = val === 'adult'     ? 'block' : 'none';
+  document.getElementById('trauma_criteria_pediatric').style.display = val === 'pediatric' ? 'block' : 'none';
+}
+function _getAdultCriteria() {
+  const el = document.getElementById('f_adult_criteria');
+  try { return JSON.parse(el ? el.value : '{}'); } catch(e) { return {}; }
+}
+function _saveAdultCriteria(data) {
+  const el = document.getElementById('f_adult_criteria');
+  if (el) el.value = JSON.stringify(data);
+}
+function _reRenderAdult() {
+  const wrap = document.getElementById('adult_wrap');
+  if (wrap) wrap.innerHTML = buildAdultCriteriaHTML(_getAdultCriteria());
+}
+function toggleAdultItem(id, isChecked) {
+  const data = _getAdultCriteria();
+  if (!data.checked) data.checked = [];
+  data.checked = isChecked ? [...new Set([...data.checked, id])] : data.checked.filter(x => x !== id);
+  _saveAdultCriteria(data);
+  _reRenderAdult();
+}
+function _getElderGrayData() {
+  const el = document.getElementById('f_elder_gray_data');
+  try { return JSON.parse(el ? el.value : '{}'); } catch(e) { return {}; }
+}
+function _saveElderGrayData(data) {
+  const el = document.getElementById('f_elder_gray_data');
+  if (el) el.value = JSON.stringify(data);
+}
+function _reRenderElderGray() {
+  const wrap = document.getElementById('eg_wrap');
+  if (wrap) wrap.innerHTML = buildElderGrayHTML(_getElderGrayData());
+}
+function toggleElderGrayItem(id, isChecked) {
+  const data = _getElderGrayData();
+  if (!data.checked) data.checked = [];
+  data.checked = isChecked ? [...new Set([...data.checked, id])] : data.checked.filter(x => x !== id);
+  _saveElderGrayData(data);
+  _reRenderElderGray();
+}
+function buildElderGrayHTML(egData) {
+  const checked = egData.checked || [];
+  const cb = (item) => {
+    const on = checked.includes(item.id);
+    return `<label class="eg-cb${on?' on':''}" onclick="toggleElderGrayItem('${item.id}',${!on})">
+      <input type="checkbox"${on?' checked':''}><div class="eg-cb-box">${on?'✓':''}</div><span>${item.text}</span>
+    </label>`;
+  };
+  const colHTML = (sections) => sections.map((sec, si) =>
+    `<div class="eg-section-head"${si===0?' style="margin-top:0"':''}><u>${sec.head}</u></div>` +
+    sec.items.map(cb).join('')
+  ).join('');
+
+  return `<div class="eg-doc">
+    <div class="eg-header">
+      <div class="eg-header-logo">
+        <div class="eg-logo-seal">
+          <svg width="44" height="44" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="50" cy="50" r="48" fill="#b8860b" stroke="#000" stroke-width="2"/>
+            <circle cx="50" cy="50" r="40" fill="#8b6914" stroke="#000" stroke-width="1.5"/>
+            <ellipse cx="50" cy="38" rx="18" ry="22" fill="#f5f0dc" stroke="#000" stroke-width="1.5"/>
+            <rect x="28" y="56" width="44" height="28" rx="3" fill="#1a2a4a" stroke="#000" stroke-width="1.5"/>
+            <line x1="35" y1="56" x2="35" y2="84" stroke="#f5f0dc" stroke-width="1"/>
+            <line x1="65" y1="56" x2="65" y2="84" stroke="#f5f0dc" stroke-width="1"/>
+            <rect x="42" y="65" width="16" height="19" rx="2" fill="#b8860b"/>
+            <circle cx="50" cy="30" r="12" fill="#5a8a3c" stroke="#000" stroke-width="1"/>
+            <path d="M44 30 Q50 22 56 30 Q50 38 44 30Z" fill="#4a7a2c"/>
+            <path d="M50 22 L50 38" stroke="#000" stroke-width="0.8"/>
+          </svg>
+        </div>
+        <div class="eg-logo-name">Hillsborough<br>County</div>
+      </div>
+      <div class="eg-header-text">
+        <div class="eg-agency">HILLSBOROUGH COUNTY TRAUMA AGENCY</div>
+        <div class="eg-title1">PRE-HOSPITAL ELDER GRAY</div>
+        <div class="eg-title2">NON-TRAUMA ALERT CRITERIA</div>
+      </div>
+    </div>
+    <div class="eg-purpose"><strong>Purpose:</strong> To identify "at-risk" older/geriatric trauma patients who might benefit from transport to a trauma center.</div>
+    <div class="eg-intro">First check to see if your older trauma patient already meets trauma alert criteria and call an alert as appropriate. If not a trauma alert, but patient is 65 years or older, consider transporting that individual to a trauma center if one or more of the following conditions are satisfied:</div>
+    <div class="eg-body">
+      <div class="eg-col">${colHTML(ELDER_GRAY_CRITERIA.left)}</div>
+      <div class="eg-col eg-col-right">${colHTML(ELDER_GRAY_CRITERIA.right)}</div>
+    </div>
+  </div>`;
+}
+function setGcsScore(cat, val) {
+  const data = _getAdultCriteria();
+  data[cat] = val ? Number(val) : '';
+  _saveAdultCriteria(data);
+  _reRenderAdult();
+}
+function buildAdultCriteriaHTML(ac) {
+  const checked = ac.checked || [];
+  const totalScore = ADULT_TRAUMA.scorecard.flatMap(c => c.items).filter(it => checked.includes(it.id)).reduce((sum, it) => sum + it.pts, 0);
+  const alertMet = totalScore >= 2;
+  const gcsRaw   = ADULT_TRAUMA.gcs.reduce((s, cat) => s + (Number(ac[cat.id]) || 0), 0);
+  const gcsTotal = gcsRaw > 0 ? gcsRaw : 3;
+
+  const cbCell = (items, pts) => {
+    const filtered = items.filter(it => it.pts === pts);
+    if (!filtered.length) return '';
+    return filtered.map(it => {
+      const on = checked.includes(it.id);
+      return `<label class="ped-cb-label${on?' on':''}" onclick="toggleAdultItem('${it.id}',${!on})">
+        <input type="checkbox"${on?' checked':''}><div class="ped-cb-box">${on?'✓':''}</div><span>${it.text}</span>
+      </label>`;
+    }).join('');
+  };
+
+  let html = `<div class="adt-doc">
+    <div class="adt-doc-head">
+      <div class="adt-doc-title">ADULT TRAUMA ALERT</div>
+    </div>
+    <div class="adt-either-row">
+      <div class="adt-either-badge-col">
+        <div class="adt-or-badge" style="font-size:0.58rem;width:42px;height:42px">Either<br>1</div>
+      </div>
+      <div class="adt-either-agency">
+        <div class="adt-either-agency-name">HILLSBOROUGH COUNTY TRAUMA AGENCY</div>
+        <div class="adt-either-agency-sub">A score of 2 or greater for an ADULT (&gt; 15 years old) according to trauma scorecard methodology below:</div>
+      </div>
+    </div>
+    <div class="adt-score-bar">
+      <span>Scorecard Total</span>
+      <span class="adt-score-pill${alertMet?' alert':''}">Score: ${totalScore}${alertMet?' — ALERT':''}</span>
+    </div>
+    <table class="adt-tbl">
+      <thead><tr>
+        <th class="adt-comp-h"></th>
+        <th class="adt-pt1-h">1 Point</th>
+        <th class="adt-pt2-h">2 Points</th>
+      </tr></thead>
+      <tbody>`;
+
+  for (const comp of ADULT_TRAUMA.scorecard) {
+    html += `<tr>
+      <td class="adt-comp-td">${comp.label.replace(/\n/g,'<br>')}</td>
+      <td>${cbCell(comp.items, 1)}</td>
+      <td>${cbCell(comp.items, 2)}</td>
+    </tr>`;
+  }
+
+  html += `</tbody></table>`;
+
+  // OR 2
+  html += `<div class="adt-or-sec">
+    <div class="adt-or-badge-col"><div class="adt-or-badge">OR<br>2</div></div>
+    <div class="adt-or-body">`;
+  for (const item of ADULT_TRAUMA.or2) {
+    const on = checked.includes(item.id);
+    html += `<label class="ped-cb-label${on?' on':''}" onclick="toggleAdultItem('${item.id}',${!on})">
+      <input type="checkbox"${on?' checked':''}><div class="ped-cb-box">${on?'✓':''}</div><span>${item.text}</span>
+    </label>`;
+  }
+  html += `<div class="adt-note">See GCS chart below (OR 4)</div></div></div>`;
+
+  // OR 3
+  html += `<div class="adt-or-sec">
+    <div class="adt-or-badge-col"><div class="adt-or-badge">OR<br>3</div></div>
+    <div class="adt-or-body">`;
+  for (const item of ADULT_TRAUMA.or3) {
+    const on = checked.includes(item.id);
+    html += `<label class="ped-cb-label${on?' on':''}" onclick="toggleAdultItem('${item.id}',${!on})">
+      <input type="checkbox"${on?' checked':''}><div class="ped-cb-box">${on?'✓':''}</div><span>${item.text}</span>
+    </label>`;
+  }
+  html += `<div class="adt-note">Any other neck laceration: Transport to nearest trauma center, but do not trauma alert</div></div></div>`;
+
+  // OR 4 — GCS
+  html += `<div class="adt-or-sec">
+    <div class="adt-or-badge-col"><div class="adt-or-badge">OR<br>4</div></div>
+    <div style="flex:1;overflow:hidden">
+      <div class="adt-gcs-title">GLASGOW COMA SCORE</div>`;
+  for (const cat of ADULT_TRAUMA.gcs) {
+    const selVal = ac[cat.id] ? String(ac[cat.id]) : '';
+    html += `<div class="adt-gcs-cat">
+      <div class="adt-gcs-cat-name">${cat.label.replace(/\n/g,'<br>')}</div>
+      <div class="adt-gcs-opts">`;
+    for (const o of cat.opts) {
+      const on = selVal === String(o.v);
+      html += `<div class="adt-gcs-opt${on?' on':''}" onclick="setGcsScore('${cat.id}','${o.v}')">
+        <input type="radio"${on?' checked':''}><span>${o.t}</span><span class="ped-pcs-dots"></span><span class="ped-pcs-val">${o.v}</span>
+      </div>`;
+    }
+    html += `</div></div>`;
+  }
+  html += `<div class="adt-gcs-total-row">GCS Total: ${gcsTotal} / 15</div>`;
+  html += `</div></div></div>`;
+  return html;
+}
+function setStrokeAlertCalled(val) {
+  updateAlertField('stroke', 'alert_called', val);
+  document.getElementById('stroke_yn_yes')?.classList.toggle('stroke-scale-active', val === 'yes');
+  document.getElementById('stroke_yn_no')?.classList.toggle('stroke-scale-active', val === 'no');
+}
+function toggleStrokeScale(scale) {
+  const data = _getAlerts();
+  if (!data.stroke) data.stroke = { active: true };
+  let scales = data.stroke.scales || ['fast-ed'];
+  if (scales.includes(scale)) {
+    if (scales.length === 1) return; // must keep at least one
+    scales = scales.filter(s => s !== scale);
+  } else {
+    scales = [...scales, scale];
+  }
+  data.stroke.scales = scales;
+  _saveAlerts(data);
+  const showFasted = scales.includes('fast-ed');
+  const showCinc   = scales.includes('cincinnati');
+  const both = showFasted && showCinc;
+  document.querySelectorAll('.stroke-scale-btn').forEach(b => {
+    const isActive = (b.textContent.trim() === 'FAST-ED' && showFasted) || (b.textContent.trim() === 'Cincinnati' && showCinc);
+    b.classList.toggle('stroke-scale-active', isActive);
+  });
+  const fasted = document.getElementById('stroke_grid_fasted');
+  const cinc   = document.getElementById('stroke_grid_cincinnati');
+  if (fasted) { fasted.style.display = showFasted ? 'block' : 'none'; fasted.querySelector('.stroke-scale-label').style.display = both ? 'block' : 'none'; }
+  if (cinc)   { cinc.style.display   = showCinc   ? 'block' : 'none'; cinc.querySelector('.stroke-scale-label').style.display   = both ? 'block' : 'none'; }
+}
+const _flatWave = `<svg width="36" height="14" viewBox="0 0 36 14" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="0,10 7,10 8,5 9,13 10,1 11,10 36,10"/></svg>`;
+const _elWave   = `<svg width="36" height="14" viewBox="0 0 36 14" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="0,10 7,10 8,5 9,13 10,1 11,6 36,6"/></svg>`;
+const _depWave  = `<svg width="36" height="14" viewBox="0 0 36 14" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="0,10 7,10 8,5 9,13 10,1 11,13 36,13"/></svg>`;
+function toggleStemiLead(lead) {
+  const data = _getAlerts();
+  if (!data.stemi) data.stemi = { active: true, leads: [], depressed: [] };
+  if (!data.stemi.leads)     data.stemi.leads     = [];
+  if (!data.stemi.depressed) data.stemi.depressed = [];
+  const isEl  = data.stemi.leads.includes(lead);
+  const isDep = data.stemi.depressed.includes(lead);
+  data.stemi.leads     = data.stemi.leads.filter(l => l !== lead);
+  data.stemi.depressed = data.stemi.depressed.filter(l => l !== lead);
+  if (!isEl && !isDep)      data.stemi.leads.push(lead);      // none → elevation
+  else if (isEl && !isDep)  data.stemi.depressed.push(lead);  // elevation → depression
+  // depression → none (already cleared above)
+  _saveAlerts(data);
+  const btn = document.getElementById(`stemi_lead_${lead.replace('/','_')}`);
+  if (!btn) return;
+  const nowEl  = data.stemi.leads.includes(lead);
+  const nowDep = data.stemi.depressed.includes(lead);
+  btn.classList.toggle('lead-active',    nowEl);
+  btn.classList.toggle('lead-depressed', nowDep);
+  btn.innerHTML = (nowEl ? _elWave : nowDep ? _depWave : _flatWave) + lead;
+}
+
+function selectPtResponse(fieldId, value, btn) {
+  const container = document.getElementById(`chips_${fieldId}`);
+  container.querySelectorAll('.pr-chip').forEach(c => c.classList.remove('chip-active'));
+  const hidden = document.getElementById(`f_${fieldId}`);
+  if (hidden.value === value) {
+    hidden.value = '';
+  } else {
+    btn.classList.add('chip-active');
+    hidden.value = value;
+  }
+}
+
+function selectQuickOption(fieldId, value, btn) {
+  document.querySelectorAll(`#chips_${fieldId} .checklist-chip`).forEach(c => c.classList.remove('chip-active'));
+  btn.classList.add('chip-active');
+  document.getElementById(`other_${fieldId}`).value = '';
+  document.getElementById(`f_${fieldId}`).value = value;
+}
+
+function syncQuickOther(fieldId) {
+  document.querySelectorAll(`#chips_${fieldId} .checklist-chip`).forEach(c => c.classList.remove('chip-active'));
+  document.getElementById(`f_${fieldId}`).value = document.getElementById(`other_${fieldId}`).value.trim();
+}
+
+const HOSPITAL_LIST = [
+  'Tampa General Hospital',
+  'St. Joseph\'s Hospital',
+  'AdventHealth Tampa',
+  'HCA Florida University Hospital',
+  'James A. Haley Veterans\' Hospital (VA)',
+  'St. Joseph\'s Hospital North',
+  'HCA Florida South Tampa Hospital',
+  'St. Joseph\'s Hospital South',
+  'AdventHealth Carrollwood',
+  'AdventHealth Wesley Chapel',
+  'HCA Florida Brandon Hospital',
+  'HCA Florida West Tampa Hospital',
+  'South Bay Hospital',
+  'South Florida Baptist Hospital'
+];
+
+const PATIENT_FOUND_LIST = [
+  'sitting on a chair',
+  'sitting on a couch',
+  'lying in bed',
+  'lying on the floor',
+  'on the floor',
+  'in a vehicle',
+  'standing outside',
+  'sitting on a stairstep',
+  'seated in a wheelchair',
+  'lying on a stretcher',
+  'slumped in a chair',
+  'sitting on the ground',
+];
+
+let _foundFocusIdx = -1;
+
+function foundFilter(fieldId) {
+  const input = document.getElementById(`f_${fieldId}`);
+  const drop  = document.getElementById(`founddrop_${fieldId}`);
+  const query = input.value.trim().toLowerCase();
+  _foundFocusIdx = -1;
+
+  const matches = query
+    ? PATIENT_FOUND_LIST.filter(p => p.toLowerCase().includes(query))
+    : PATIENT_FOUND_LIST;
+
+  if (!matches.length) { drop.innerHTML = ''; drop.classList.remove('open'); return; }
+
+  drop.innerHTML = matches.map((p, i) => {
+    const label = query
+      ? p.replace(new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')})`, 'gi'),
+          '<span class="hosp-match">$1</span>')
+      : p;
+    return `<div class="hosp-option" data-val="${p}" data-idx="${i}"
+      onmousedown="foundPick('${fieldId}', this.dataset.val)">${label}</div>`;
+  }).join('');
+  drop.classList.add('open');
+}
+
+function foundPick(fieldId, value) {
+  document.getElementById(`f_${fieldId}`).value = value;
+  document.getElementById(`founddrop_${fieldId}`).classList.remove('open');
+  _foundFocusIdx = -1;
+}
+
+function foundBlur(fieldId) {
+  setTimeout(() => {
+    const drop = document.getElementById(`founddrop_${fieldId}`);
+    if (drop) drop.classList.remove('open');
+    _foundFocusIdx = -1;
+  }, 150);
+}
+
+function foundKeydown(e, fieldId) {
+  const drop = document.getElementById(`founddrop_${fieldId}`);
+  const options = drop ? Array.from(drop.querySelectorAll('.hosp-option')) : [];
+  if (!options.length) return;
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    _foundFocusIdx = Math.min(_foundFocusIdx + 1, options.length - 1);
+    options.forEach((o, i) => o.classList.toggle('hosp-focused', i === _foundFocusIdx));
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    _foundFocusIdx = Math.max(_foundFocusIdx - 1, 0);
+    options.forEach((o, i) => o.classList.toggle('hosp-focused', i === _foundFocusIdx));
+  } else if (e.key === 'Enter' && _foundFocusIdx >= 0) {
+    e.preventDefault();
+    foundPick(fieldId, options[_foundFocusIdx].dataset.val);
+  } else if (e.key === 'Escape') {
+    drop.classList.remove('open');
+  }
+}
+
+let _hospFocusIdx = -1;
+
+function hospFilter(fieldId) {
+  const input = document.getElementById(`f_${fieldId}`);
+  const drop  = document.getElementById(`hospdrop_${fieldId}`);
+  const query = input.value.trim().toLowerCase();
+  _hospFocusIdx = -1;
+
+  const matches = query
+    ? HOSPITAL_LIST.filter(h => h.toLowerCase().includes(query))
+    : HOSPITAL_LIST;
+
+  if (!matches.length) { drop.innerHTML = ''; drop.classList.remove('open'); return; }
+
+  drop.innerHTML = matches.map((h, i) => {
+    const label = query
+      ? h.replace(new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')})`, 'gi'),
+          '<span class="hosp-match">$1</span>')
+      : h;
+    return `<div class="hosp-option" data-val="${h}" data-idx="${i}"
+      onmousedown="hospPick('${fieldId}', this.dataset.val)">${label}</div>`;
+  }).join('');
+  drop.classList.add('open');
+}
+
+function hospPick(fieldId, value) {
+  document.getElementById(`f_${fieldId}`).value = value;
+  document.getElementById(`hospdrop_${fieldId}`).classList.remove('open');
+  _hospFocusIdx = -1;
+}
+
+function hospBlur(fieldId) {
+  setTimeout(() => {
+    const drop = document.getElementById(`hospdrop_${fieldId}`);
+    if (drop) drop.classList.remove('open');
+    _hospFocusIdx = -1;
+  }, 150);
+}
+
+function hospKeydown(e, fieldId) {
+  const drop = document.getElementById(`hospdrop_${fieldId}`);
+  const options = drop ? Array.from(drop.querySelectorAll('.hosp-option')) : [];
+  if (!options.length) return;
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    _hospFocusIdx = Math.min(_hospFocusIdx + 1, options.length - 1);
+    options.forEach((o, i) => o.classList.toggle('hosp-focused', i === _hospFocusIdx));
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    _hospFocusIdx = Math.max(_hospFocusIdx - 1, 0);
+    options.forEach((o, i) => o.classList.toggle('hosp-focused', i === _hospFocusIdx));
+  } else if (e.key === 'Enter' && _hospFocusIdx >= 0) {
+    e.preventDefault();
+    hospPick(fieldId, options[_hospFocusIdx].dataset.val);
+  } else if (e.key === 'Escape') {
+    drop.classList.remove('open');
+  }
+}
+
+function toggleChip(fieldId, btn) {
+  btn.classList.toggle('chip-active');
+  syncChecklist(fieldId);
+}
+
+function syncChecklist(fieldId) {
+  const chips = document.querySelectorAll(`#chips_${fieldId} .checklist-chip.chip-active`);
+  const selected = Array.from(chips).map(c => c.textContent.trim());
+  const other = document.getElementById(`other_${fieldId}`)?.value.trim();
+  const all = [...selected, ...(other ? [other] : [])];
+  document.getElementById(`f_${fieldId}`).value = all.join(', ');
+}
+
+const PED_TRAUMA = {
+  scorecard: [
+    { id:'size',          label:'SIZE',          items:[
+      { id:'size_1a',   pts:1, text:'Weight < 11 kg (24 lbs.) or measures 33 inches or less in length' },
+    ]},
+    { id:'airway',        label:'AIRWAY',         items:[
+      { id:'airway_2a', pts:2, text:'Active airway assistance' },
+      { id:'airway_2b', pts:2, text:'Intubated' },
+    ]},
+    { id:'consciousness', label:'CONSCIOUSNESS',  items:[
+      { id:'con_1a',    pts:1, text:'Amnesia' },
+      { id:'con_1b',    pts:1, text:'Reliable history of loss of consciousness' },
+      { id:'con_2a',    pts:2, text:'Altered mental status' },
+      { id:'con_2b',    pts:2, text:'Coma' },
+      { id:'con_2c',    pts:2, text:'Paralysis' },
+      { id:'con_2d',    pts:2, text:'Suspected spinal cord injury' },
+      { id:'con_2e',    pts:2, text:'Loss of sensation' },
+    ]},
+    { id:'circulation',   label:'CIRCULATION',    items:[
+      { id:'circ_1a',   pts:1, text:'Carotid or femoral pulse palpable but neither radial nor pedal pulses palpable' },
+      { id:'circ_1b',   pts:1, text:'SBP < 90 mm Hg' },
+      { id:'circ_2a',   pts:2, text:'Weak or nonpalpable carotid or femoral pulse' },
+      { id:'circ_2b',   pts:2, text:'SBP < 50 mm Hg' },
+    ]},
+    { id:'fracture',      label:'FRACTURE',        items:[
+      { id:'frac_1a',   pts:1, text:'Suspected single closed long bone fracture' },
+      { id:'frac_2a',   pts:2, text:'Any open long bone fracture' },
+      { id:'frac_2b',   pts:2, text:'Multiple fracture/dislocation sites' },
+    ]},
+    { id:'cutaneous',     label:'CUTANEOUS',       items:[
+      { id:'cut_2a',    pts:2, text:'Major tissue disruption' },
+      { id:'cut_2b',    pts:2, text:'Amputation' },
+      { id:'cut_2c',    pts:2, text:'2nd or 3rd degree burns ≥ 10% or more total body surface area' },
+      { id:'cut_2d',    pts:2, text:'Any high voltage electrical or lightning injury' },
+      { id:'cut_2e',    pts:2, text:'Penetrating injury to head, neck, or torso' },
+    ]},
+  ],
+  or2: [
+    { id:'or2_a', text:'Neck laceration with swelling, sustained bleeding, escape of air from wound, or stridor' },
+    { id:'or2_b', text:'Provider high index of suspicion' },
+  ],
+  pcs: [
+    { id:'pcs_eyes',   label:'Opens Eyes',          opts:[{v:4,t:'Spontaneously'},{v:3,t:'To voice'},{v:2,t:'To pain'},{v:1,t:'No response'}] },
+    { id:'pcs_verbal', label:'Best Verbal Response', opts:[{v:5,t:'Coos/babbles'},{v:4,t:'Consolable'},{v:3,t:'Cries to pain'},{v:2,t:'Moans to pain'},{v:1,t:'No response'}] },
+    { id:'pcs_motor',  label:'Best Motor Response',  opts:[{v:6,t:'Normal spontaneous'},{v:5,t:'Withdraws to touch'},{v:4,t:'Withdraws to pain'},{v:3,t:'Abnormal flexion [decorticates]'},{v:2,t:'Abnormal extension [decerebrate]'},{v:1,t:'No response'}] },
+  ],
+};
+
+const ADULT_TRAUMA = {
+  scorecard: [
+    { id:'aw',   label:'Airway',                  items:[
+      { id:'aw_1a',   pts:1, text:'Sustained RR ≥ 30' },
+      { id:'aw_2a',   pts:2, text:'Active airway assistance (BVM)' },
+    ]},
+    { id:'acirc',label:'Circulation',              items:[
+      { id:'ac_1a',   pts:1, text:'Sustained HR > 120' },
+      { id:'ac_2a',   pts:2, text:'Lack of radial pulse with sustained HR > 120' },
+      { id:'ac_2b',   pts:2, text:'Systolic BP < 90' },
+    ]},
+    { id:'bmr',  label:'Best Motor\nResponse (BMR)',items:[
+      { id:'bmr_1a',  pts:1, text:'BMR = 5' },
+      { id:'bmr_2a',  pts:2, text:'BMR ≤ 4' },
+      { id:'bmr_2b',  pts:2, text:'Paralysis' },
+      { id:'bmr_2c',  pts:2, text:'Suspected spinal cord injury' },
+      { id:'bmr_2d',  pts:2, text:'Loss of sensation' },
+    ]},
+    { id:'acut', label:'Cutaneous',                items:[
+      { id:'acut_1a', pts:1, text:'Tissue loss (degloving, injuries, major flap avulsions > 5 inches)' },
+      { id:'acut_1b', pts:1, text:'GSW to extremity' },
+      { id:'acut_2a', pts:2, text:'Amputation proximal to the wrist or ankle' },
+      { id:'acut_2b', pts:2, text:'2nd or 3rd degree burns ≥ 15% TBSA' },
+      { id:'acut_2c', pts:2, text:'Any high voltage electrical or lightning injury' },
+      { id:'acut_2d', pts:2, text:'Penetrating injury to head, neck, or torso (excluding superficial wounds in which the depth of the wound can be easily determined)' },
+    ]},
+    { id:'lb',   label:'Long Bone\nFracture',      items:[
+      { id:'lb_1a',   pts:1, text:'Single fracture site due to MVA' },
+      { id:'lb_1b',   pts:1, text:'Single fracture site due to a fall ≥ 10 feet' },
+      { id:'lb_2a',   pts:2, text:'Multiple fracture sites' },
+    ]},
+    { id:'age',  label:'Age',                      items:[
+      { id:'age_1a',  pts:1, text:'≥ 55' },
+    ]},
+    { id:'moi',  label:'Mechanism\nof Injury',     items:[
+      { id:'moi_1a',  pts:1, text:'Ejection from vehicle (excluding any motorcycle, moped, ATV, bicycle, or open truck bed)' },
+      { id:'moi_1b',  pts:1, text:'Deformed steering wheel (driver)' },
+    ]},
+  ],
+  or2: [
+    { id:'aor2_gcs', text:'A GCS score of ≤ 12 (Excluding those whose baseline is 12 or less)' },
+  ],
+  or3: [
+    { id:'aor3_a', text:'Neck laceration with swelling, sustained bleeding, escape of air from wound, or stridor' },
+    { id:'aor3_b', text:'Death of passenger in the same vehicle, consider mechanism' },
+    { id:'aor3_c', text:'Provider high index of suspicion' },
+  ],
+  gcs: [
+    { id:'gcs_eyes',   label:'Opens\nEyes',         opts:[{v:4,t:'Spontaneously'},{v:3,t:'To voice'},{v:2,t:'To pain'},{v:1,t:'No response'}] },
+    { id:'gcs_verbal', label:'Best\nVerbal\nResponse',opts:[{v:5,t:'Oriented'},{v:4,t:'Confused'},{v:3,t:'Inappropriate words'},{v:2,t:'Incomprehensible words'},{v:1,t:'No response'}] },
+    { id:'gcs_motor',  label:'Best\nMotor\nResponse', opts:[{v:6,t:'Obeys commands'},{v:5,t:'Localizes to pain'},{v:4,t:'Withdraws to pain'},{v:3,t:'Flexion (pain) [decorticate]'},{v:2,t:'Extension (pain) [decerebrate]'},{v:1,t:'No response'}] },
+  ],
+};
+
+const ELDER_GRAY_CRITERIA = {
+  left: [
+    {
+      head: 'Mechanism of injury:',
+      items: [
+        { id: 'eg_burns', text: 'Burns' }
+      ]
+    },
+    {
+      head: 'Motor vehicle collision associated with:',
+      items: [
+        { id: 'eg_mvc_rapid_decel',           text: 'Rapid deceleration of automobile (> 35 mph)' },
+        { id: 'eg_mvc_pedestrian',            text: 'Pedestrian' },
+        { id: 'eg_mvc_bicycle',               text: 'Bicycle' },
+        { id: 'eg_mvc_golf_cart',             text: 'Golf cart' },
+        { id: 'eg_mvc_motorcycle',            text: 'Motorcycle' },
+        { id: 'eg_mvc_unrestrained',          text: 'Unrestrained vehicle occupant' },
+        { id: 'eg_mvc_pass_space',            text: 'Significant passenger space invasion' },
+        { id: 'eg_mvc_prolonged_extrication', text: 'Prolonged extrication greater than 20 minutes' },
+        { id: 'eg_mvc_vehicular_damage',      text: 'Significant vehicular damage' },
+        { id: 'eg_mvc_rollover',              text: 'Rollover' },
+        { id: 'eg_mvc_fatality',              text: 'Fatality (other occupant)' }
+      ]
+    },
+    {
+      head: 'Injuries associated with an above mechanism:',
+      items: [
+        { id: 'eg_chest_pelvic', text: 'Evidence of chest or pelvic trauma' }
+      ]
+    }
+  ],
+  right: [
+    {
+      head: 'Other events associated w/high-energy dissipation:',
+      items: [
+        { id: 'eg_fall',  text: 'Fall (> ground level)' },
+        { id: 'eg_blast', text: 'Blast traumatic injury and currently taking: anticoagulants and blood thinners, cardiac medications such as beta blockers and antiarrhythmics, diabetic medications' }
+      ]
+    },
+    {
+      head: 'Traumatic injury and medical history of:',
+      items: [
+        { id: 'eg_hx_cardiac',         text: 'Cardiac' },
+        { id: 'eg_hx_chf',             text: 'CHF' },
+        { id: 'eg_hx_copd',            text: 'COPD' },
+        { id: 'eg_hx_paralysis',       text: 'Paralysis' },
+        { id: 'eg_hx_dementia',        text: 'Dementia' },
+        { id: 'eg_hx_recent_surgery',  text: 'Recent surgery' },
+        { id: 'eg_hx_organ_transplant',text: 'Organ transplant' },
+        { id: 'eg_hx_diabetes',        text: 'Diabetes' }
+      ]
+    }
+  ]
+};
+
+const BLS_AUTO_FIELDS = ['abcs_ok', 'vitals_ok', 'assessment_ok'];
+const BLS_AUTO_STEPS  = ['primary_assessment', 'secondary_assessment'];
+
+function syncAssessmentLabel(value) {
+  const lbl = document.getElementById('assessment_ok_label');
+  if (!lbl) return;
+  const map = { 'Focused assessment': 'Focused Assessment', 'Head to toe': 'Head to Toe' };
+  const dot = lbl.querySelector('.auto-dot');
+  lbl.textContent = map[value] || 'Assessment Notes';
+  if (dot) lbl.prepend(dot);
+}
+
+function setServiceLevel(level) {
+  const input = document.getElementById('f_service_level');
+  if (input) input.value = level;
+  if (!state.data.dispatch) state.data.dispatch = {};
+  state.data.dispatch.service_level = level;
+
+  const banner = document.getElementById('als_bls_banner');
+  if (banner) {
+    const [alsBtn, blsBtn] = banner.querySelectorAll('.als-bls-btn');
+    alsBtn.classList.toggle('als-active', level === 'als');
+    blsBtn.classList.toggle('bls-active', level === 'bls');
+    banner.classList.toggle('bls-mode', level === 'bls');
+  }
+
+  BLS_AUTO_STEPS.forEach(stepId => {
+    if (!state.data[stepId]) state.data[stepId] = {};
+    BLS_AUTO_FIELDS.forEach(fieldId => {
+      if (level === 'bls') {
+        state.data[stepId][fieldId] = 'up';
+      } else {
+        // Only clear if still at the auto-preset value
+        if (state.data[stepId][fieldId] === 'up') delete state.data[stepId][fieldId];
+      }
+    });
+  });
+
+  const currentStepId = STEPS[state.current]?.id;
+  if (BLS_AUTO_STEPS.includes(currentStepId)) renderStep(state.current);
+}
+
+function getServiceLevel() {
+  return (state.data.dispatch || {}).service_level || 'als';
+}
+
+function toggleStepPerformed(val) {
+  document.getElementById('f__performed').value = val;
+  document.getElementById('step_fields_toggle').style.display = val === 'yes' ? 'block' : 'none';
+  document.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector(val === 'yes' ? '.toggle-check' : '.toggle-cross').classList.add('active');
+}
+
+function setYesNo(fieldId, value, btn) {
+  document.getElementById('f_' + fieldId).value = value;
+  btn.parentElement.querySelectorAll('.yesno-btn').forEach(b => b.classList.remove('yn-active'));
+  btn.classList.add('yn-active');
+  document.querySelectorAll(`.showwhen_${fieldId}_yes`).forEach(wrapper => {
+    wrapper.style.display = value === 'yes' ? 'block' : 'none';
+    // When hiding, cascade-reset any thumbs inside and hide their downstream wrappers
+    if (value !== 'yes') {
+      wrapper.querySelectorAll('input[type="hidden"]').forEach(inp => {
+        const childId = inp.id.replace(/^f_/, '');
+        inp.value = '';
+        document.querySelectorAll(`.showwhen_${childId}_down`).forEach(dw => dw.style.display = 'none');
+      });
+      wrapper.querySelectorAll('.thumbs-btn').forEach(b => b.classList.remove('tb-active'));
+    }
+  });
+}
+
+function clearAutoDot(fieldId) {
+  const dot = document.getElementById('autodot_' + fieldId);
+  if (dot) dot.remove();
+}
+
+function setThumbs(fieldId, value, btn) {
+  document.getElementById('f_' + fieldId).value = value;
+  clearAutoDot(fieldId);
+  btn.parentElement.querySelectorAll('.thumbs-btn').forEach(b => b.classList.remove('tb-active'));
+  btn.classList.add('tb-active');
+  document.querySelectorAll(`.showwhen_${fieldId}_down`).forEach(dw => {
+    dw.style.display = value === 'down' ? 'block' : 'none';
+  });
+  const drop = document.getElementById('bardrop_' + fieldId);
+  if (drop) drop.style.display = value === 'down' ? 'block' : 'none';
+}
+
+const UNIT_TYPES = ['Rescue','Engine','Truck','Chief'];
+
+function syncUnits() {
+  const rows = document.querySelectorAll('#units_container .unit-row');
+  const vals = Array.from(rows).map(r => {
+    const type = r.querySelector('.unit-type-select')?.value || 'Rescue';
+    const num  = r.querySelector('.unit-num-input')?.value.trim() || '';
+    return num ? `${type} ${num}` : '';
+  }).filter(Boolean);
+  document.getElementById('f_unit').value = vals.length ? JSON.stringify(vals) : '';
+}
+
+function addUnit() {
+  const container = document.getElementById('units_container');
+  const rows = container.querySelectorAll('.unit-row');
+  const lastAdd = container.querySelector('#unit_add_btn');
+  if (lastAdd) lastAdd.remove();
+  const idx = rows.length;
+  const opts = UNIT_TYPES.map(t => `<option value="${t}">${t}</option>`).join('');
+  const div = document.createElement('div');
+  div.className = 'unit-row';
+  div.id = `unit_row_${idx}`;
+  div.innerHTML = `<select class="unit-type-select" onchange="syncUnits()">${opts}</select>
+    <input type="text" class="unit-num-input" placeholder="e.g. 24" value="" oninput="syncUnits()">
+    <button type="button" class="unit-remove-btn" onclick="removeUnit(${idx})">×</button>
+    <button type="button" class="unit-add-btn" id="unit_add_btn" onclick="addUnit()">+</button>`;
+  container.appendChild(div);
+  div.querySelector('input').focus();
+}
+
+function removeUnit(idx) {
+  const row = document.getElementById(`unit_row_${idx}`);
+  if (!row) return;
+  const hadAddBtn = !!row.querySelector('#unit_add_btn');
+  row.remove();
+  const container = document.getElementById('units_container');
+  const rows = container.querySelectorAll('.unit-row');
+  rows.forEach((r, i) => {
+    r.id = `unit_row_${i}`;
+    const rmBtn = r.querySelector('.unit-remove-btn');
+    if (rmBtn) rmBtn.setAttribute('onclick', `removeUnit(${i})`);
+  });
+  if (hadAddBtn && rows.length > 0) {
+    const lastRow = rows[rows.length - 1];
+    if (!lastRow.querySelector('#unit_add_btn')) {
+      const btn = document.createElement('button');
+      btn.type = 'button'; btn.className = 'unit-add-btn'; btn.id = 'unit_add_btn';
+      btn.textContent = '+'; btn.setAttribute('onclick', 'addUnit()');
+      lastRow.appendChild(btn);
+    }
+  }
+  syncUnits();
+}
+
+function toggleVitalDone(fieldId) {
+  const inp = document.getElementById(`f_${fieldId}_done`);
+  if (!inp) return;
+  const next = inp.value === 'yes' ? '' : 'yes';
+  inp.value = next;
+  const box = document.getElementById(`vcb_${fieldId}`);
+  if (box) { box.classList.toggle('on', next === 'yes'); box.textContent = next === 'yes' ? '✓' : ''; }
+}
+function collectStep(idx) {
+  const step = STEPS[idx];
+  const data = {};
+  for (const f of step.fields) {
+    if (f.type === 'header' || f.type === 'section') continue;
+    if (f.type === 'step_toggle') { data[f.id] = document.getElementById(`f_${f.id}`)?.value || 'no'; continue; }
+    const el = document.getElementById(`f_${f.id}`);
+    if (el) data[f.id] = el.value.trim();
+    if (f.checkbox) {
+      const doneEl = document.getElementById(`f_${f.id}_done`);
+      if (doneEl) data[`${f.id}_done`] = doneEl.value;
+    }
+  }
+  return data;
+}
+
+function goToStep(idx) {
+  if (state.view === 'review' || state.view === 'narrative') {
+    state.view = 'steps';
+  } else {
+    state.data[STEPS[state.current].id] = collectStep(state.current);
+  }
+  state.current = idx;
+  renderProgressBar();
+  renderStep(state.current);
+}
+
+function goNext(idx) {
+  const step = STEPS[idx];
+  const data = collectStep(idx);
+  const missing = step.fields.filter(f => {
+    if (!f.required || data[f.id]) return false;
+    const el = document.getElementById(`f_${f.id}`);
+    if (!el) return false;
+    // For type="hidden" inputs (units, quickselect, etc.) check the parent field container's visibility
+    const visEl = el.type === 'hidden' ? (el.closest('.field') || el.parentElement) : el;
+    return visEl && visEl.offsetParent !== null;
+  });
+  if (missing.length) {
+    missing.forEach(f => {
+      const el = document.getElementById(`f_${f.id}`);
+      if (!el) return;
+      if (el.type === 'hidden') {
+        const field = el.closest('.field');
+        if (!field) return;
+        const visInput = field.querySelector('input:not([type="hidden"]), textarea');
+        const btnGroup = field.querySelector('.thumbs-group, .yesno-group');
+        if (visInput) { visInput.style.borderColor = 'var(--red)'; visInput.focus(); }
+        else if (btnGroup) { btnGroup.style.outline = '2px solid var(--red)'; btnGroup.style.borderRadius = '8px'; }
+      } else {
+        el.style.borderColor = 'var(--red)'; el.focus();
+      }
+    });
+    return;
+  }
+  state.data[step.id] = data;
+  delete state.skipped[step.id];
+  const hidden = getHiddenSteps();
+  let nextIdx = idx + 1;
+  while (nextIdx < STEPS.length && hidden.includes(STEPS[nextIdx].id)) nextIdx++;
+  if (nextIdx >= STEPS.length) { state.view = 'review'; renderReview(); }
+  else { state.current = nextIdx; renderProgressBar(); renderStep(state.current); }
+}
+
+function goBack() {
+  if (state.view === 'review' || state.view === 'narrative') {
+    state.view = 'steps';
+    const hidden = getHiddenSteps();
+    let backIdx = STEPS.length - 1;
+    while (backIdx >= 0 && hidden.includes(STEPS[backIdx].id)) backIdx--;
+    state.current = Math.max(0, backIdx);
+    renderProgressBar(); renderStep(state.current); return;
+  }
+  if (state.current > 0) {
+    state.data[STEPS[state.current].id] = collectStep(state.current);
+    const hidden = getHiddenSteps();
+    let prevIdx = state.current - 1;
+    while (prevIdx > 0 && hidden.includes(STEPS[prevIdx].id)) prevIdx--;
+    state.current = prevIdx;
+    renderProgressBar(); renderStep(state.current);
+  }
+}
+
+function skipStep(idx) {
+  state.skipped[STEPS[idx].id] = true;
+  state.data[STEPS[idx].id] = {};
+  if (idx === STEPS.length - 1) { state.view = 'review'; renderReview(); }
+  else { state.current = idx + 1; renderProgressBar(); renderStep(state.current); }
+}
+
+// ── Review ───────────────────────────────────────────────────
+
+function renderReview() {
+  renderProgressBar();
+  const sections = STEPS.map((step, si) => {
+    const isSkipped = state.skipped[step.id];
+    const d = state.data[step.id] || {};
+    let rows = '';
+    if (!isSkipped) {
+      for (const f of step.fields) {
+        if (f.type === 'header' || f.type === 'vital') continue;
+        const val = d[f.id];
+        if (val && val !== '— select —') {
+          rows += `<div class="review-field"><span class="review-label">${f.label || f.id}</span><span class="review-value">${val}</span></div>`;
+        }
+      }
+      // Vitals inline
+      const vitalFields = step.fields.filter(f => f.type === 'vital');
+      const vitalPairs = vitalFields.map(f => d[f.id] ? `${f.label} ${d[f.id]}` : '').filter(Boolean);
+      if (vitalPairs.length) rows += `<div class="review-field"><span class="review-label">Vital Signs</span><span class="review-value">${vitalPairs.join(', ')}</span></div>`;
+    }
+    return `<div class="review-section">
+      <div class="review-section-header">
+        <h3>${step.label}</h3>
+        <div style="display:flex;align-items:center;gap:8px">
+          ${isSkipped ? '<span class="skipped-tag">Skipped</span>' : ''}
+          <button class="btn-edit" onclick="editStep(${si})">Edit</button>
+        </div>
+      </div>
+      <div class="review-body">${isSkipped
+        ? '<span style="color:var(--gray-500);font-size:0.83rem;font-style:italic">Section skipped.</span>'
+        : (rows || '<span style="color:var(--gray-500);font-size:0.83rem;font-style:italic">No data entered.</span>')
+      }</div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('stepContainer').innerHTML = `
+    <div class="card">
+      <div class="card-header">
+        <div class="step-icon" style="background:var(--green-pale);color:var(--green)">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        </div>
+        <div><h2>Review Your Report</h2><p>Edit any section before generating the narrative.</p></div>
+      </div>
+      ${sections}
+      <div class="btn-row" style="margin-top:20px">
+        <button class="btn btn-secondary" onclick="goBack()">← Back</button>
+        <button class="btn btn-green btn-lg" onclick="generateNarrative()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+          Generate Narrative
+        </button>
+      </div>
+    </div>`;
+}
+
+function editStep(idx) {
+  state.view = 'steps'; state.current = idx;
+  renderProgressBar(); renderStep(idx);
+}
+
+// ── Helpers ───────────────────────────────────────────────────
+
+function v(stepId, fieldId) { return (state.data[stepId] || {})[fieldId] || ''; }
+function skip(stepId) { return !!state.skipped[stepId] || getHiddenSteps().includes(stepId); }
+
+// Ensure text ends with a single period
+function dot(text) {
+  text = (text || '').trim().replace(/\.+$/, '');
+  return text ? text + '.' : '';
+}
+
+// Expand "55f", "47m", "55 y/o M", "55 YOM", "55 YO F" etc. → "55 year old male/female"
+function normalizePatient(raw) {
+  if (!raw) return raw;
+  const s = raw.trim();
+  // "55f" / "47m" shorthand
+  const short = s.match(/^(\d+)\s*([mf])$/i);
+  if (short) {
+    const gender = short[2].toLowerCase() === 'm' ? 'year old male' : 'year old female';
+    return `${short[1]} ${gender}`;
+  }
+  // "55 y/o M" / "55 YOM" / "55 YO F"
+  const long = s.match(/^(\d+)\s*y\/?o\s*([mf])$/i);
+  if (long) {
+    const gender = long[2].toLowerCase() === 'm' ? 'year old male' : 'year old female';
+    return `${long[1]} ${gender}`;
+  }
+  return s;
+}
+
+// Build vitals string from a step's data
+function vitalsStr(stepId) {
+  const parts = [
+    v(stepId,'hr')   && `HR ${v(stepId,'hr')}`,
+    v(stepId,'bp')   && `BP ${v(stepId,'bp')}`,
+    v(stepId,'rr')   && `RR ${v(stepId,'rr')}`,
+    v(stepId,'spo2') && `SpO₂ ${v(stepId,'spo2')}%`,
+    v(stepId,'bgl')  && `BGL ${v(stepId,'bgl')}`,
+    v(stepId,'temp') && `temp ${v(stepId,'temp')}°`,
+  ].filter(Boolean);
+  return parts.join(', ');
+}
+
+// ── Narrative Generation ──────────────────────────────────────
+
+function generateNarrative() {
+  const paras = [];
+
+  // ── Para 1: Dispatch ──
+  if (!skip('dispatch')) {
+    let unitArr = [];
+    try { unitArr = JSON.parse(v('dispatch','unit') || '[]'); } catch(e) { unitArr = [v('dispatch','unit')]; }
+    unitArr = unitArr.filter(Boolean);
+    const unit    = unitArr.length > 1
+      ? unitArr.slice(0,-1).join(', ') + ' and ' + unitArr[unitArr.length-1]
+      : (unitArr[0] || 'EMS');
+    const patient = normalizePatient(v('dispatch','patient'));
+    const dispCC  = v('dispatch','dispatch_complaint');
+
+    let line = `${unit} was dispatched to`;
+    if (patient) line += ` a ${patient} patient`;
+    if (dispCC)  line += ` for ${dispCC}`;
+    paras.push(dot(line));
+  }
+
+  // ── Para 2: Scene ──
+  if (!skip('scene')) {
+    const found = v('scene','patient_found');
+    const notes = v('scene','scene_notes');
+    const moi   = v('scene','moi_noi');
+    const bits  = [];
+    if (found) bits.push(`the patient was found ${found}`);
+    if (notes) bits.push(notes);
+    if (bits.length) paras.push(dot('On arrival, ' + bits.join('; ')));
+  }
+
+  // ── Para 2: Initial Assessment + On-Scene Interventions + Stretcher ──
+  if (!skip('primary_assessment')) {
+    const sentences = [];
+
+    // Mental status / GCS
+    const ms  = v('primary_assessment','mental_status');
+    const gcs = v('primary_assessment','gcs');
+    if (ms || gcs) {
+      let line = 'On examination, the patient was';
+      if (ms)  line += ` ${ms.toLowerCase()}`;
+      if (gcs) line += `; GCS ${gcs}`;
+      sentences.push(dot(line));
+    }
+
+    // ABCs
+    const abcsOk    = v('primary_assessment','abcs_ok');
+    const abcsNotes = v('primary_assessment','abcs').replace(/\.+$/, '');
+    const abcsRx    = v('primary_assessment','abcs_interventions').replace(/\.+$/, '');
+    const abcsPR    = v('primary_assessment','abcs_pt_response');
+    if (abcsOk === 'down' && abcsNotes) {
+      sentences.push(dot(`Assessment of ABCs revealed ${abcsNotes}`));
+    } else if (abcsOk === 'up') {
+      sentences.push('ABCs were assessed and did not reveal any immediate life threats.');
+    }
+    if (abcsRx)                sentences.push(dot(abcsRx));
+    if (abcsPR)                sentences.push(dot(abcsPR));
+
+    // Vitals
+    const vStr       = vitalsStr('primary_assessment');
+    const lungSounds = v('primary_assessment','lung_sounds');
+    const ekgRhythm  = v('primary_assessment','ekg');
+    const ekg12Lead  = v('primary_assessment','ekg_12lead');
+    const bglDone    = v('primary_assessment','bgl_done');
+    const ekgDone    = v('primary_assessment','ekg_done');
+    const ekg12Done  = v('primary_assessment','ekg_12lead_done');
+    const painScale  = v('primary_assessment','pain');
+    const pupilsVal  = v('primary_assessment','pupils');
+    const vitalsRx   = v('primary_assessment','vitals_interventions').replace(/\.+$/, '');
+    const vitalsPR   = v('primary_assessment','vitals_pt_response');
+    const vitalParts = [
+      vStr,
+      lungSounds && `lung sounds ${lungSounds.toLowerCase()}`,
+      ekgRhythm  && `4 lead EKG ${ekgRhythm.toLowerCase()}`,
+      ekg12Lead  && `12 lead EKG ${ekg12Lead.toLowerCase()}`,
+      painScale  && `pain ${painScale}`,
+      pupilsVal  && `pupils ${pupilsVal.toLowerCase()}`,
+    ].filter(Boolean);
+    sentences.push(vitalParts.length
+      ? dot(`Vital signs were assessed which revealed ${vitalParts.join(', ')}`)
+      : 'Vital signs were assessed without life-threatening abnormalities.');
+    if (!v('primary_assessment','bgl') && bglDone === 'yes') sentences.push('Blood glucose was taken.');
+    if (!ekgRhythm && ekgDone === 'yes') sentences.push('4 Lead EKG was taken.');
+    if (!ekg12Lead && ekg12Done === 'yes') sentences.push('12 Lead EKG was taken.');
+    if (vitalsRx) sentences.push(dot(vitalsRx));
+    if (vitalsPR) sentences.push(dot(vitalsPR));
+
+    // History — SAMPLE / OPQRST
+    const opqrstPresent = v('primary_assessment','opqrst_present');
+    const opqrst = v('primary_assessment','opqrst').replace(/\.+$/, '');
+    const sample = v('primary_assessment','sample').replace(/\.+$/, '');
+    if (opqrstPresent === 'no') {
+      sentences.push(sample
+        ? dot(`A SAMPLE history was obtained which revealed ${sample}`)
+        : 'A SAMPLE history was obtained.');
+    } else if (opqrstPresent === 'yes') {
+      const sP = sample
+        ? dot(`A SAMPLE history was obtained which revealed ${sample}`)
+        : 'A SAMPLE history was obtained.';
+      const oP = opqrst
+        ? dot(`An OPQRST history was completed which revealed ${opqrst}`)
+        : 'An OPQRST history was completed.';
+      sentences.push(`${sP} ${oP}`);
+    }
+
+    // Pertinent negatives
+    const pertNeg = v('primary_assessment','pertinent_negatives').replace(/\.+$/, '');
+    if (pertNeg) sentences.push(dot(`The patient denied ${pertNeg}`));
+
+    // Physical assessment
+    const assType  = v('primary_assessment','assessment_type') || 'focused assessment';
+    const assNotes = v('primary_assessment','assessment_notes').replace(/\.+$/, '');
+    const assRx    = v('primary_assessment','assessment_interventions').replace(/\.+$/, '');
+    const assPR    = v('primary_assessment','assessment_pt_response');
+    sentences.push(assNotes
+      ? dot(`A ${assType.toLowerCase()} was performed which revealed ${assNotes}`)
+      : dot(`A ${assType.toLowerCase()} was performed which did not reveal any DCAP-BTLS`));
+    if (assRx) sentences.push(dot(assRx));
+    if (assPR) sentences.push(dot(assPR));
+
+    // Medical alerts
+    let alertData = {};
+    try { alertData = JSON.parse(v('primary_assessment','alerts') || '{}'); } catch(e) {}
+    if (alertData.stroke?.active) {
+      const sk = alertData.stroke;
+      const scales = sk.scales || ['fast-ed'];
+      const scaleResults = [];
+      if (scales.includes('fast-ed')) {
+        const normals = { fe_face:'Normal', fe_arm:'No drift', fe_speech:'Normal', fe_time:'Unknown', fe_eyes:'None', fe_denial:'Absent' };
+        const labels  = { fe_face:'facial droop', fe_arm:'arm strength', fe_speech:'speech', fe_time:'last known well', fe_eyes:'eyes deviation', fe_denial:'denial/neglect' };
+        const abn = Object.keys(normals).filter(k => sk[k] && sk[k] !== normals[k]);
+        const parts = abn.map(k => `${labels[k]}: ${sk[k]}`);
+        scaleResults.push(parts.length ? `FAST-ED revealed ${parts.join('; ')}` : 'FAST-ED within normal limits');
+      }
+      if (scales.includes('cincinnati')) {
+        const normals = { ci_face:'Normal', ci_arm:'No drift', ci_speech:'Normal' };
+        const labels  = { ci_face:'facial droop', ci_arm:'arm drift', ci_speech:'speech' };
+        const abn = Object.keys(normals).filter(k => sk[k] && sk[k] !== normals[k]);
+        const parts = abn.map(k => `${labels[k]}: ${sk[k]}`);
+        scaleResults.push(parts.length ? `Cincinnati revealed ${parts.join('; ')}` : 'Cincinnati within normal limits');
+      }
+      const alertCalled = sk.alert_called === 'yes' ? ' A stroke alert was activated.' : sk.alert_called === 'no' ? ' Stroke alert was not called.' : '';
+      sentences.push(dot(`Stroke assessment performed — ${scaleResults.join('; ')}`) + alertCalled);
+    }
+    if (alertData.trauma?.active) {
+      sentences.push('A trauma alert was activated.');
+    }
+    // Pediatric trauma criteria findings
+    if (!skip('trauma_criteria')) {
+      const tc = state.data.trauma_criteria || {};
+      if (tc.trauma_type === 'pediatric' && tc.ped_criteria) {
+        let pc = {}; try { pc = JSON.parse(tc.ped_criteria); } catch(e) {}
+        const checked = pc.checked || [];
+        const allItems = PED_TRAUMA.scorecard.flatMap(c => c.items).concat(PED_TRAUMA.or2);
+        const hitItems = allItems.filter(it => checked.includes(it.id));
+        if (hitItems.length) {
+          const byComp = PED_TRAUMA.scorecard.map(comp => {
+            const hits = comp.items.filter(it => checked.includes(it.id));
+            return hits.length ? `${comp.label.toLowerCase()}: ${hits.map(i => i.text.toLowerCase()).join(', ')}` : null;
+          }).filter(Boolean);
+          const or2Hits = PED_TRAUMA.or2.filter(it => checked.includes(it.id)).map(it => it.text.toLowerCase());
+          if (or2Hits.length) byComp.push(...or2Hits);
+          const totalScore = PED_TRAUMA.scorecard.flatMap(c => c.items).filter(it => checked.includes(it.id)).reduce((sum, it) => sum + it.pts, 0);
+          sentences.push(dot(`Pediatric trauma scorecard score of ${totalScore}: ${byComp.join('; ')}`));
+        }
+        const pcsTotal = PED_TRAUMA.pcs.reduce((s, cat) => s + (Number(pc[cat.id]) || 0), 0);
+        if (pcsTotal > 0) {
+          const pcsDetails = PED_TRAUMA.pcs.map(cat => {
+            if (!pc[cat.id]) return null;
+            const opt = cat.opts.find(o => String(o.v) === String(pc[cat.id]));
+            return opt ? `${cat.label.toLowerCase()}: ${opt.t.toLowerCase()} (${opt.v})` : null;
+          }).filter(Boolean);
+          sentences.push(dot(`Pediatric Coma Scale (PCS) score ${pcsTotal}/15 — ${pcsDetails.join('; ')}`));
+        }
+      }
+      if (tc.trauma_type === 'adult' && tc.adult_criteria) {
+        let ac = {}; try { ac = JSON.parse(tc.adult_criteria); } catch(e) {}
+        const checked = ac.checked || [];
+        const allScItems = ADULT_TRAUMA.scorecard.flatMap(c => c.items);
+        const hitItems = allScItems.filter(it => checked.includes(it.id));
+        if (hitItems.length || ADULT_TRAUMA.or2.some(it => checked.includes(it.id)) || ADULT_TRAUMA.or3.some(it => checked.includes(it.id))) {
+          const byComp = ADULT_TRAUMA.scorecard.map(comp => {
+            const hits = comp.items.filter(it => checked.includes(it.id));
+            return hits.length ? `${comp.label.replace(/\n/g,' ').toLowerCase()}: ${hits.map(i => i.text.toLowerCase()).join(', ')}` : null;
+          }).filter(Boolean);
+          const or2Hits = ADULT_TRAUMA.or2.filter(it => checked.includes(it.id)).map(it => it.text.toLowerCase());
+          const or3Hits = ADULT_TRAUMA.or3.filter(it => checked.includes(it.id)).map(it => it.text.toLowerCase());
+          if (or2Hits.length) byComp.push(...or2Hits);
+          if (or3Hits.length) byComp.push(...or3Hits);
+          const totalScore = allScItems.filter(it => checked.includes(it.id)).reduce((sum, it) => sum + it.pts, 0);
+          sentences.push(dot(`Adult trauma scorecard score of ${totalScore}: ${byComp.join('; ')}`));
+        }
+        const gcsRaw = ADULT_TRAUMA.gcs.reduce((s, cat) => s + (Number(ac[cat.id]) || 0), 0);
+        if (gcsRaw > 0) {
+          const gcsDetails = ADULT_TRAUMA.gcs.map(cat => {
+            if (!ac[cat.id]) return null;
+            const opt = cat.opts.find(o => String(o.v) === String(ac[cat.id]));
+            return opt ? `${cat.label.replace(/\n/g,' ').toLowerCase()}: ${opt.t.toLowerCase()} (${opt.v})` : null;
+          }).filter(Boolean);
+          sentences.push(dot(`Glasgow Coma Scale (GCS) score ${gcsRaw}/15 — ${gcsDetails.join('; ')}`));
+        }
+      }
+    }
+    if (alertData.sepsis?.active) {
+      const parts = [];
+      if (alertData.sepsis.etco2) parts.push(`ETCO₂ ${alertData.sepsis.etco2} mmHg`);
+      if (alertData.sepsis.temp)  parts.push(`temp ${alertData.sepsis.temp}°`);
+      if (alertData.sepsis.hr)    parts.push(`HR ${alertData.sepsis.hr}`);
+      if (alertData.sepsis.rr)    parts.push(`RR ${alertData.sepsis.rr}`);
+      sentences.push(parts.length
+        ? dot(`Sepsis alert activated with criteria: ${parts.join(', ')}`)
+        : 'A sepsis alert was activated.');
+    }
+    if (alertData.stemi?.active) {
+      const leads     = alertData.stemi.leads     || [];
+      const depressed = alertData.stemi.depressed || [];
+      const parts = [];
+      if (leads.length)     parts.push(`ST elevation noted in leads ${leads.join(', ')}`);
+      if (depressed.length) parts.push(`ST depression noted in leads ${depressed.join(', ')}`);
+      sentences.push(parts.length ? dot(`STEMI alert activated; ${parts.join('; ')}`) : 'A STEMI alert was activated.');
+    }
+    if (alertData.cardiac?.active) {
+      const f = (alertData.cardiac.findings || '').replace(/\.+$/,'');
+      sentences.push(f ? dot(`Cardiac alert activated: ${f}`) : 'A cardiac alert was activated.');
+    }
+    if (alertData.elder_gray?.active && !skip('elder_gray_criteria')) {
+      const egRaw = state.data.elder_gray_criteria || {};
+      let egChecked = [];
+      try { egChecked = (JSON.parse(egRaw.elder_gray_data || '{}')).checked || []; } catch(e) {}
+      const allEgItems = [...ELDER_GRAY_CRITERIA.left, ...ELDER_GRAY_CRITERIA.right].flatMap(s => s.items);
+      const hitItems = allEgItems.filter(it => egChecked.includes(it.id));
+      if (hitItems.length) {
+        sentences.push(dot(`Elder Gray alert criteria met: ${hitItems.map(it => it.text.toLowerCase()).join('; ')}`));
+      } else {
+        sentences.push('An Elder Gray alert was activated.');
+      }
+    }
+
+    // Stretcher movement
+    const sceneDisp     = v('scene','disposition');
+    const isTransported = !sceneDisp || sceneDisp === 'Transported by EMS';
+    const stretcher     = v('primary_assessment','stretcher_movement');
+    if (isTransported && stretcher) {
+      sentences.push(
+        stretcher.toLowerCase() === 'self-ambulatory'
+          ? `The patient was able to self-ambulate to the stretcher without incident, secured with 2 straps, and moved to the back of the rescue.`
+          : stretcher.toLowerCase() === 'walk-assisted'
+          ? `The patient was walk-assisted to the stretcher without incident, secured with 2 straps, and moved to the back of the rescue.`
+          : `The patient was moved to the stretcher via ${stretcher.toLowerCase()} without incident, secured with 2 straps, and moved to the back of the rescue.`
+      );
+    }
+
+    if (sentences.length) paras.push(sentences.join(' '));
+  }
+
+  // ── Para 3: En Route Reassessment ──
+  if (!skip('secondary_assessment')) {
+    const sentences = [];
+
+    const ms2  = v('secondary_assessment','mental_status') || v('primary_assessment','mental_status');
+    const gcs2 = v('secondary_assessment','gcs') || v('primary_assessment','gcs');
+
+    let reaLine = 'En route reassessment';
+    if (ms2) {
+      reaLine += `: the patient remained ${ms2.toLowerCase()}`;
+      if (gcs2) reaLine += `; GCS ${gcs2}`;
+    }
+    sentences.push(dot(reaLine));
+
+    // Secondary ABCs
+    const abcs2Ok    = v('secondary_assessment','abcs_ok');
+    const abcs2Notes = v('secondary_assessment','abcs').replace(/\.+$/, '');
+    const abcs2Rx    = v('secondary_assessment','abcs_interventions').replace(/\.+$/, '');
+    const abcs2PR    = v('secondary_assessment','abcs_pt_response');
+    if (abcs2Ok === 'down' && abcs2Notes) {
+      sentences.push(dot(`ABCs reassessment revealed ${abcs2Notes}`));
+    } else {
+      sentences.push('ABCs remained without life-threatening findings.');
+    }
+    if (abcs2Rx) sentences.push(dot(abcs2Rx));
+    if (abcs2PR) sentences.push(dot(abcs2PR));
+
+    // Secondary vitals
+    const vStr2       = vitalsStr('secondary_assessment');
+    const lungSounds2 = v('secondary_assessment','lung_sounds');
+    const ekgRhythm2  = v('secondary_assessment','ekg');
+    const ekg12Lead2  = v('secondary_assessment','ekg_12lead');
+    const bglDone2    = v('secondary_assessment','bgl_done');
+    const ekgDone2    = v('secondary_assessment','ekg_done');
+    const ekg12Done2  = v('secondary_assessment','ekg_12lead_done');
+    const painScale2  = v('secondary_assessment','pain');
+    const pupilsVal2  = v('secondary_assessment','pupils');
+    const vitals2Rx   = v('secondary_assessment','vitals_interventions').replace(/\.+$/, '');
+    const vitals2PR   = v('secondary_assessment','vitals_pt_response');
+    const vitalParts2 = [
+      vStr2,
+      lungSounds2 && `lung sounds ${lungSounds2.toLowerCase()}`,
+      ekgRhythm2  && `4 lead EKG ${ekgRhythm2.toLowerCase()}`,
+      ekg12Lead2  && `12 lead EKG ${ekg12Lead2.toLowerCase()}`,
+      painScale2  && `pain ${painScale2}`,
+      pupilsVal2  && `pupils ${pupilsVal2.toLowerCase()}`,
+    ].filter(Boolean);
+    sentences.push(vitalParts2.length
+      ? dot(`Repeat vital signs were assessed which revealed ${vitalParts2.join(', ')}`)
+      : 'Repeat vital signs remained stable.');
+    if (!v('secondary_assessment','bgl') && bglDone2 === 'yes') sentences.push('Blood glucose was taken.');
+    if (!ekgRhythm2 && ekgDone2 === 'yes') sentences.push('4 Lead EKG was taken.');
+    if (!ekg12Lead2 && ekg12Done2 === 'yes') sentences.push('12 Lead EKG was taken.');
+    if (vitals2Rx) sentences.push(dot(vitals2Rx));
+    if (vitals2PR) sentences.push(dot(vitals2PR));
+
+    // Extra vitals sets
+    const extraVitalsList = (() => { try { return JSON.parse(v('secondary_assessment','extra_vitals_list') || '[]'); } catch(e) { return []; } })();
+    extraVitalsList.forEach(ev => {
+      const evParts = [
+        ev.hr     && `HR ${ev.hr}`,
+        ev.bp     && `BP ${ev.bp}`,
+        ev.rr     && `RR ${ev.rr}`,
+        ev.spo2   && `SpO₂ ${ev.spo2}%`,
+        ev.bgl    && `BGL ${ev.bgl}`,
+        ev.temp   && `temp ${ev.temp}°`,
+        ev.lung_sounds && `lung sounds ${ev.lung_sounds.toLowerCase()}`,
+        ev.ekg         && `4 lead EKG ${ev.ekg.toLowerCase()}`,
+        ev.ekg_12lead  && `12 lead EKG ${ev.ekg_12lead.toLowerCase()}`,
+        ev.pain   && `pain ${ev.pain}`,
+        ev.pupils && `pupils ${ev.pupils.toLowerCase()}`,
+      ].filter(Boolean);
+      if (evParts.length) sentences.push(dot(`Repeat vital signs were assessed which revealed ${evParts.join(', ')}`));
+      if (ev.interventions) sentences.push(dot(ev.interventions.replace(/\.+$/, '')));
+      if (ev.pt_response)   sentences.push(dot(ev.pt_response));
+    });
+
+    // Secondary assessment
+    const assType2  = v('secondary_assessment','assessment_type');
+    const assNotes2 = v('secondary_assessment','assessment_notes').replace(/\.+$/, '');
+    const assRx2    = v('secondary_assessment','assessment_interventions').replace(/\.+$/, '');
+    const assPR2    = v('secondary_assessment','assessment_pt_response');
+    if (assType2) {
+      sentences.push(assNotes2
+        ? dot(`A repeat ${assType2.toLowerCase()} revealed ${assNotes2}`)
+        : dot(`A repeat ${assType2.toLowerCase()} revealed no new findings`));
+      if (assRx2) sentences.push(dot(assRx2));
+      if (assPR2) sentences.push(dot(assPR2));
+    }
+
+    // Additional notes
+    const reaNotes = v('secondary_assessment','reassessment').replace(/\.+$/, '');
+    if (reaNotes) sentences.push(dot(reaNotes));
+
+    if (sentences.length) paras.push(sentences.join(' '));
+  }
+
+  // ── Para 4: Transport + Transfer of Care ──
+  if (!skip('hospital')) {
+    const sceneDisp = v('scene','disposition');
+    const position    = v('hospital','transport_position');
+    const facility    = v('hospital','receiving_facility');
+    const staff       = v('hospital','receiving_staff');
+    const bedTransfer = v('hospital','bed_transfer');
+
+    if (sceneDisp && sceneDisp !== 'Transported by EMS') {
+      paras.push(dot(sceneDisp));
+    } else {
+      const tParts = [];
+      if (position) tParts.push(`in ${position.toLowerCase()} position`);
+      if (facility)  tParts.push(`to ${facility}`);
+      const transport = tParts.length
+        ? dot(`The patient was transported ${tParts.join(', ')} without incident`)
+        : 'The patient was transported without incident.';
+      const handoff = staff
+        ? `A verbal report was given to ${staff} upon arrival and care was transferred.`
+        : 'Upon arrival, care was transferred to the receiving staff.';
+      const bedLine = bedTransfer
+        ? ` The patient was moved to the hospital bed via ${bedTransfer.toLowerCase()} without incident.`
+        : '';
+      paras.push(`${transport} ${handoff}${bedLine}`);
+    }
+  }
+
+  // ── Cancelled disposition: placed back in service ──
+  const finalDisp = v('scene', 'disposition');
+  if (finalDisp === 'Cancelled en route' || finalDisp === 'Cancelled by TPD') {
+    let unitArr = [];
+    try { unitArr = JSON.parse(v('dispatch','unit') || '[]'); } catch(e) { unitArr = [v('dispatch','unit')]; }
+    unitArr = unitArr.filter(Boolean);
+    const unit = unitArr.length > 1
+      ? unitArr.slice(0,-1).join(', ') + ' and ' + unitArr[unitArr.length-1]
+      : (unitArr[0] || 'EMS');
+    paras.push(dot(`${unit} placed back in service`));
+  }
+
+  renderNarrative(paras.join('\n\n'));
+}
+
+// ── Render Narrative ──────────────────────────────────────────
+
+function renderNarrative(narrative) {
+  state.view = 'narrative';
+  renderProgressBar();
+  const html = narrative.split('\n\n').map(p => `<p>${p}</p>`).join('');
+  document.getElementById('stepContainer').innerHTML = `
+    <div class="card">
+      <div class="card-header">
+        <div class="step-icon" style="background:var(--green-pale);color:var(--green)">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        </div>
+        <div><h2>Generated Narrative</h2><p>Copy this text directly into your report system.</p></div>
+      </div>
+      <div class="narrative-box" id="narrativeText">${html}</div>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <button class="btn btn-primary" onclick="copyNarrative()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          Copy to Clipboard
+        </button>
+        <span class="copy-notice" id="copyNotice">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          Copied!
+        </span>
+        <div style="margin-left:auto;display:flex;gap:8px">
+          <button class="btn btn-secondary" onclick="renderReview()">← Edit Report</button>
+          <button class="btn btn-secondary" onclick="startOver()">New PCR</button>
+        </div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <div class="card-header">
+        <div class="step-icon" style="background:#f0f9ff;color:#0369a1">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        </div>
+        <div><h2>Report System Coding</h2><p style="color:var(--gray-500);font-size:0.85rem">Based on chief complaint: <strong id="coding-cc" style="color:var(--blue)">${(state.data.scene||{}).moi_noi || '—'}</strong></p></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:4px 0 8px">
+        ${[1,2,3,4,5].map(n => `
+        <div class="field" style="margin:0">
+          <label style="font-size:0.8rem;font-weight:700;color:var(--gray-600);text-transform:uppercase;letter-spacing:0.04em">${n}</label>
+          <select id="coding_field_${n}">
+            <option value="">— select —</option>
+          </select>
+        </div>`).join('')}
+      </div>
+    </div>`;
+}
+
+function copyNarrative() {
+  const el = document.getElementById('narrativeText');
+  const text = el ? el.innerText : '';
+  const notice = document.getElementById('copyNotice');
+  const show = () => { notice.classList.add('show'); setTimeout(() => notice.classList.remove('show'), 2500); };
+  navigator.clipboard.writeText(text).then(show).catch(() => {
+    const ta = document.createElement('textarea');
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta); show();
+  });
+}
+
+function startOver() {
+  if (!confirm('Start a new PCR? All current data will be cleared.')) return;
+  state = { current: 0, data: {}, skipped: {}, view: 'steps' };
+  renderProgressBar(); renderStep(0);
+}
+
+// ── Fill Example ──────────────────────────────────────────────
+
+function fillExample() {
+  state.data = {
+    dispatch: { unit: '["Rescue 13"]', patient: '55 y/o M', dispatch_complaint: 'Chest pain' },
+    scene: { patient_found: 'seated on the couch by his wife', scene_notes: '', moi_noi: 'chest pain with atraumatic onset', disposition: 'Transported by EMS' },
+    primary_assessment: {
+      mental_status: 'Alert and oriented x4', gcs: '15',
+      abcs_ok: 'up', abcs: '', abcs_interventions: '', abcs_pt_response: '',
+      vitals_ok: 'down',
+      hr: '92', bp: '148/92', rr: '18', spo2: '91', bgl: '', temp: '',
+      lung_sounds: 'Clear and equal bilaterally',
+      vitals_interventions: 'O2 via NRB at 15 LPM; cardiac monitor applied', vitals_pt_response: 'Tolerated Well',
+      pertinent_negatives: 'neck/back pain',
+      assessment_type: 'Focused assessment', assessment_ok: 'up',
+      assessment_notes: '', assessment_interventions: '', assessment_pt_response: '',
+      stroke_alert: 'no', stroke_alert_findings: '',
+      opqrst_present: 'no', opqrst_ok: '', opqrst: '',
+      sample_ok: '', sample: '',
+      stretcher_movement: 'Extremity lift'
+    },
+    secondary_assessment: {
+      mental_status: 'Alert and oriented x4', gcs: '15',
+      abcs_ok: 'up', abcs: '', abcs_interventions: '', abcs_pt_response: '',
+      vitals_ok: 'up', hr: '', bp: '', rr: '', spo2: '', bgl: '', temp: '',
+      lung_sounds: '', vitals_interventions: '', vitals_pt_response: '',
+      assessment_type: 'Focused assessment', assessment_ok: 'up',
+      assessment_notes: '', assessment_interventions: '', assessment_pt_response: '',
+      reassessment: 'No change in condition en route'
+    },
+    hospital: { transport_position: "Semi-Fowler's", receiving_facility: 'Regional Medical Center ED', receiving_staff: 'RN assuming care' }
+  };
+  state.skipped = {};
+  state.view = 'review';
+  renderReview();
+}
+
+// ── Init ──────────────────────────────────────────────────────
+renderProgressBar();
+renderStep(0);
+</script>
+
+
+</body></html>
